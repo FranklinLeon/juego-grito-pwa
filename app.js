@@ -106,7 +106,7 @@ async function iniciarAudio(deviceId){
   listarMicrofonos();
 }
 
-// Nivel de sonido instantaneo en dBFS (RMS de la ventana)
+// Nivel de sonido instantaneo en dBFS (RMS de la ventana de FFT)
 function leerDb(){
   if(!audioListo) return -99;
   analizador.getFloatTimeDomainData(bufer);
@@ -114,6 +114,24 @@ function leerDb(){
   for(let i = 0; i < bufer.length; i++) suma += bufer[i] * bufer[i];
   const rms = Math.sqrt(suma / bufer.length);
   return 20 * Math.log10(rms + 1e-9);   // el epsilon evita log10(0)
+}
+
+// Promedio de los ultimos VENTANA_MS: un mic barato se satura/clipea por
+// 1-2 frames con una plosiva o un golpe de aire, y ese instante SOLO
+// (leerDb crudo) puede marcar un pico que el jugador nunca vio en el
+// medidor. Promediando en una ventana corta, todo el juego (medidor,
+// pico que decide el premio, y las calibraciones HABLA/GRITO/PICO) lee
+// el mismo numero suavizado y deja de "regalar" premios por un click.
+const VENTANA_MS = 200;
+let ventanaDb = [];
+function leerDbSuavizado(){
+  const dbInstant = leerDb();
+  const ahora = performance.now();
+  ventanaDb.push({ t: ahora, db: dbInstant });
+  while(ventanaDb.length > 1 && ahora - ventanaDb[0].t > VENTANA_MS) ventanaDb.shift();
+  let suma = 0;
+  for(const e of ventanaDb) suma += e.db;
+  return suma / ventanaDb.length;
 }
 
 // dB -> nivel 0..100 con el mapeo de 2 puntos calibrado
@@ -269,7 +287,7 @@ function pintarMarcasUmbral(){
 /* ---------------- Bucle de render ---------------- */
 function bucle(){
   rafId = requestAnimationFrame(bucle);
-  const db = leerDb();
+  const db = leerDbSuavizado();
   const nivel = dbANivel(db);
 
   if(estado === 'grito'){
