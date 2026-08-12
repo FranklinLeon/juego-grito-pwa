@@ -45,7 +45,7 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v9';
+const APP_VERSION = 'v10';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -121,8 +121,14 @@ let senalMala = 0;   // lecturas no-finitas seguidas (mic conectado pero con dat
    en vez de tener que adivinar desde otro sitio. */
 let diag = {
   intento:'—', trackLabel:'—', trackSR:0, ctxSR:0, canales:0,
-  rms:0, noFinitos:0, mudo:null, estadoPista:'—', modo:'float'
+  rms:0, noFinitos:0, mudo:null, estadoPista:'—', modo:'float',
+  estadoCtx:'—', cambia:null
 };
+
+/* Firma barata del buffer para saber si REALMENTE se esta actualizando.
+   Si no cambia entre lecturas no es audio: es memoria congelada, que es
+   justo lo que produce el -3.0 dB clavado. */
+let firmaPrev = null;
 
 /* No todos los microfonos/drivers Android aceptan igual las restricciones
    estrictas (mono forzado, deviceId exacto). Un mic USB/Bluetooth que en
@@ -245,6 +251,15 @@ let buferByte = null;
 function leerDb(){
   if(!audioListo) return -99;
 
+  /* Si el contexto se queda suspendido, el grafo NO se procesa y el buffer
+     jamas se rellena: se lee siempre lo mismo. Android suspende el contexto
+     al pasar la app a segundo plano, al cambiar de ruta de audio, o si el
+     resume() inicial no prendio. Por eso se reintenta aqui, en cada lectura. */
+  if(audioCtx){
+    diag.estadoCtx = audioCtx.state;
+    if(audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  }
+
   let suma = 0, validas = 0, malas = 0;
 
   if(!modoBytes){
@@ -275,6 +290,17 @@ function leerDb(){
   }
 
   diag.noFinitos = malas;
+
+  /* ¿el buffer se esta refrescando de verdad? Si la firma no cambia entre
+     lecturas, lo que hay ahi es memoria congelada, no sonido. */
+  const src = modoBytes ? buferByte : bufer;
+  let firma = 0;
+  for(let i = 0; i < src.length; i += 16){
+    const v = src[i];
+    firma = (firma * 31 + (Number.isFinite(v) ? Math.round(v * 1000) : 7)) | 0;
+  }
+  diag.cambia = (firmaPrev === null) ? null : (firma !== firmaPrev);
+  firmaPrev = firma;
 
   if(!validas){ senalMala++; diag.rms = 0; return -99; }
 
@@ -681,6 +707,9 @@ function pintarDiag(){
     fila('muestras inválidas', diag.noFinitos, diag.noFinitos ? 'mal' : 'bien') +
     fila('RMS crudo', diag.rms.toFixed(6), diag.rms > 0 ? 'bien' : 'mal') +
     fila('modo de lectura', diag.modo, diag.modo === 'float' ? 'bien' : 'mal') +
+    fila('estado audio', diag.estadoCtx, diag.estadoCtx === 'running' ? 'bien' : 'mal') +
+    fila('buffer se refresca', diag.cambia === null ? '—' : (diag.cambia ? 'SÍ' : 'NO — congelado'),
+         diag.cambia ? 'bien' : 'mal') +
     fila('conectó al intento', diag.intento);
 }
 

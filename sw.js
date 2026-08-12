@@ -1,7 +1,7 @@
 /* Service worker: deja la app funcionando SIN internet una vez instalada.
    Si cambias archivos, sube el numero de VERSION para forzar la actualizacion. */
 
-const VERSION = 'grito-v12';
+const VERSION = 'grito-v13';
 const ARCHIVOS = [
   './',
   './index.html',
