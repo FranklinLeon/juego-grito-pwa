@@ -128,6 +128,15 @@
     </div>
 
     <div class="tarjeta">
+      <h3>Probar el grito &mdash; distribuci&oacute;n</h3>
+      <p class="ayuda">Haz varios gritos (flojo, normal, a todo pulm&oacute;n) y mira qu&eacute; premio dar&iacute;a cada uno con la calibraci&oacute;n de ahora. As&iacute; afinas los rangos antes del evento.</p>
+      <button class="btn-cal azul ancho" id="btnMedirPico">MEDIR PICO (3s)</button>
+      <div class="log-resumen" id="logResumen">&mdash;</div>
+      <div class="log-gritos" id="logGritos"></div>
+      <button class="btn-cal gris ancho" id="btnLimpiarLog" hidden>Limpiar lista</button>
+    </div>
+
+    <div class="tarjeta">
       <h3>Rangos de premio</h3>
       <div class="campo"><label>M&iacute;nimo para <b id="lbl1">premio bajo</b></label>
         <div class="stepper"><button data-k="minBajo" data-d="-1">&minus;</button><span id="v-minBajo">?</span><button data-k="minBajo" data-d="1">+</button></div></div>
@@ -174,8 +183,13 @@
   </div>
 </section>
 
-<!-- zona secreta para abrir ajustes: 5 toques en la esquina sup. derecha -->
-<div class="zona-secreta" id="zonaSecreta"></div>
+<!-- boton pequeno para abrir ajustes: esquina superior derecha -->
+<button class="btn-tuerca" id="btnTuerca" aria-label="Ajustes">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="3.2"/>
+    <path d="M12 2.5v2.6M12 18.9v2.6M4.4 4.4l1.8 1.8M17.8 17.8l1.8 1.8M2.5 12h2.6M18.9 12h2.6M4.4 19.6l1.8-1.8M17.8 6.2l1.8-1.8"/>
+  </svg>
+</button>
 <div class="toast" id="toast"></div>
 
 <script src="app.js"></script>

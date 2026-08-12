@@ -186,6 +186,7 @@ const CIRC = 2 * Math.PI * 100;   // circunferencia del arco (r=100)
 
 function irA(nuevo){
   estado = nuevo;
+  document.body.classList.remove('panel-abierto');
   mostrar('p-' + nuevo);
 }
 
@@ -444,13 +445,52 @@ function pintarPanel(){
 
 function abrirPanel(){
   estado = 'admin';
+  document.body.classList.add('panel-abierto');
   mostrar('p-admin');
   pintarPanel();
+  pintarLog();
   listarMicrofonos();
   if(!rafId) rafId = requestAnimationFrame(bucle);
 }
 
-/* ----- Captura de calibracion (HABLA / GRITO) ----- */
+/* ----- Prueba de gritos: premio SOLO por nivel (sin sorteo oculto) ----- */
+/* Esto es para AFINAR: muestra que premio daria cada grito con los rangos
+   actuales, igual que el calibrador de la cabina. No consume el sorteo. */
+function premioDeNivel(n){
+  if(n < cfg.minBajo)  return { txt:'SIN PREMIO',  cls:'p-nada'  };
+  if(n < cfg.minMedio) return { txt:cfg.nomBajo,   cls:'p-bajo'  };
+  if(n < cfg.minAlto)  return { txt:cfg.nomMedio,  cls:'p-medio' };
+  return                      { txt:cfg.nomAlto,   cls:'p-alto'  };
+}
+
+let logPicos = [];   // gritos de prueba de esta sesion (no se guarda)
+function pintarLog(){
+  const c = $('logGritos'), res = $('logResumen'), btn = $('btnLimpiarLog');
+  if(!logPicos.length){
+    c.innerHTML = '';
+    res.textContent = 'Aún no hay gritos medidos.';
+    btn.hidden = true;
+    return;
+  }
+  btn.hidden = false;
+  const cuenta = { 'p-nada':0, 'p-bajo':0, 'p-medio':0, 'p-alto':0 };
+  logPicos.forEach(r => cuenta[r.cls]++);
+  res.innerHTML =
+    `${logPicos.length} gritos · ` +
+    `sin premio <b>${cuenta['p-nada']}</b> · ` +
+    `${cfg.nomBajo} <b>${cuenta['p-bajo']}</b> · ` +
+    `${cfg.nomMedio} <b>${cuenta['p-medio']}</b> · ` +
+    `${cfg.nomAlto} <b>${cuenta['p-alto']}</b>`;
+  const n = logPicos.length;
+  c.innerHTML = logPicos.map((r, i) => `
+    <div class="log-fila">
+      <span class="log-n">#${n - i}</span>
+      <span class="log-niv">${r.nivel}</span>
+      <span class="log-prem ${r.cls}">${r.txt}</span>
+    </div>`).join('');
+}
+
+/* ----- Captura (HABLA / GRITO para calibrar · PICO para probar) ----- */
 let capturando = null, capFin = 0, capSuma = 0, capN = 0, capPico = -99;
 function iniciarCaptura(tipo){
   capturando = tipo;
@@ -460,18 +500,31 @@ function iniciarCaptura(tipo){
 }
 function procesarCaptura(db){
   if(capturando === 'piso'){ capSuma += db; capN++; }
-  else if(db > capPico) capPico = db;
+  else if(db > capPico) capPico = db;          // grito y pico: se quedan con el máximo
 
-  if(performance.now() >= capFin){
-    if(capturando === 'piso' && capN){
-      cfg.pisoDb = Math.round(capSuma / capN + 3);   // +3 dB de margen sobre el ruido
-    }else if(capturando === 'grito'){
-      cfg.maxDb = Math.round(capPico);
-    }
-    if(cfg.maxDb <= cfg.pisoDb) cfg.maxDb = cfg.pisoDb + 6;   // evita rango invertido
+  if(performance.now() < capFin) return;
+
+  // PICO: solo prueba, agrega a la lista sin tocar la calibracion
+  if(capturando === 'pico'){
+    const nivel = dbANivel(capPico);
+    const p = premioDeNivel(nivel);
+    logPicos.unshift({ nivel, txt: p.txt, cls: p.cls });
+    if(logPicos.length > 30) logPicos.pop();
     capturando = null;
-    guardarCfg(); pintarPanel(); toast('Calibrado ✔');
+    pintarLog();
+    toast(`Pico: nivel ${nivel} → ${p.txt}`);
+    return;
   }
+
+  // HABLA / GRITO: fijan la calibracion
+  if(capturando === 'piso' && capN){
+    cfg.pisoDb = Math.round(capSuma / capN + 3);   // +3 dB de margen sobre el ruido
+  }else if(capturando === 'grito'){
+    cfg.maxDb = Math.round(capPico);
+  }
+  if(cfg.maxDb <= cfg.pisoDb) cfg.maxDb = cfg.pisoDb + 6;   // evita rango invertido
+  capturando = null;
+  guardarCfg(); pintarPanel(); toast('Calibrado ✔');
 }
 
 /* ---------------- Eventos ---------------- */
@@ -517,6 +570,8 @@ enlazarTexto('txtAlto','nomAlto');   enlazarTexto('emoAlto','emoAlto');
 
 $('btnFijarHabla').addEventListener('click', () => iniciarCaptura('piso'));
 $('btnFijarGrito').addEventListener('click', () => iniciarCaptura('grito'));
+$('btnMedirPico').addEventListener('click', () => iniciarCaptura('pico'));
+$('btnLimpiarLog').addEventListener('click', () => { logPicos = []; pintarLog(); });
 
 $('selMic').addEventListener('change', async e => {
   cfg.micId = e.target.value; guardarCfg();
@@ -541,17 +596,8 @@ $('btnCerrarPanel').addEventListener('click', () => {
   irA(audioListo ? 'reposo' : 'permiso');
 });
 
-// gesto secreto: 5 toques en la esquina superior derecha
-(function(){
-  let toques = 0, ultimo = 0;
-  $('zonaSecreta').addEventListener('pointerdown', (e) => {
-    e.stopPropagation();
-    const ahora = Date.now();
-    if(ahora - ultimo > 1200) toques = 0;
-    ultimo = ahora; toques++;
-    if(toques >= 5){ toques = 0; abrirPanel(); }
-  });
-})();
+// boton de ajustes: un solo toque en la esquina superior derecha
+$('btnTuerca').addEventListener('click', (e) => { e.stopPropagation(); abrirPanel(); });
 
 // evita el zoom por doble toque
 document.addEventListener('dblclick', e => e.preventDefault(), { passive:false });
