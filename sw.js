@@ -1,7 +1,7 @@
 /* Service worker: deja la app funcionando SIN internet una vez instalada.
    Si cambias archivos, sube el numero de VERSION para forzar la actualizacion. */
 
-const VERSION = 'grito-v4';
+const VERSION = 'grito-v5';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -29,16 +29,23 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+/* RED PRIMERO: siempre intenta traer lo ultimo de internet y guarda una
+   copia fresca en cache. Solo si NO hay conexion sirve lo ultimo cacheado.
+   Antes era "cache primero", y por eso las tablets se quedaban pegadas en
+   la version vieja aunque hubiera una nueva publicada. */
 self.addEventListener('fetch', (e) => {
   if(e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  if(url.origin !== self.location.origin) return;   // no tocar recursos externos
   e.respondWith(
-    caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
-      // guarda copia de lo que se vaya pidiendo (mismo origen)
-      if(res.ok && e.request.url.startsWith(self.location.origin)){
-        const copia = res.clone();
-        caches.open(VERSION).then(c => c.put(e.request, copia));
-      }
-      return res;
-    }).catch(() => caches.match('./index.html')))
+    fetch(e.request)
+      .then(res => {
+        if(res && res.ok){
+          const copia = res.clone();
+          caches.open(VERSION).then(c => c.put(e.request, copia));
+        }
+        return res;
+      })
+      .catch(() => caches.match(e.request).then(hit => hit || caches.match('./index.html')))
   );
 });
