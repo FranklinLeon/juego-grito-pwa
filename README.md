@@ -4,6 +4,16 @@ Versión **solo software** del juego de gritos: una tablet + un micrófono cualq
 Sin ESP32, sin dispensador, sin tira LED. Mide el grito con el micrófono del
 dispositivo y reparte premios por nivel.
 
+## 🔴 EN VIVO
+
+**<https://franklinleon.github.io/juego-grito-pwa/>**
+
+Abre esa URL en la tablet → menú del navegador → **"Agregar a pantalla de inicio"**.
+
+> Para actualizar la app publicada: edita, `git commit` y `git push`. GitHub Pages
+> reconstruye en ~1 min. **Sube también `VERSION` en `sw.js`**, si no la tablet
+> seguirá sirviendo la versión cacheada.
+
 ---
 
 ## 1. Probarlo ahora (en esta PC)
