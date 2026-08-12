@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Test de micrófono</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,Arial,sans-serif;background:#0b1118;color:#fff;padding:18px;line-height:1.5}
+  h1{font-size:19px;margin-bottom:4px}
+  .sub{font-size:13px;color:#8fa3b8;margin-bottom:16px}
+  button{font:inherit;font-weight:700;background:#1B8ACB;color:#fff;border:none;
+         border-radius:12px;padding:15px 20px;width:100%;margin-bottom:10px;cursor:pointer}
+  select{font:inherit;width:100%;padding:12px;border-radius:10px;margin-bottom:14px;
+         background:#16202b;color:#fff;border:1px solid #2c3b4d}
+  .num{font-size:52px;font-weight:900;text-align:center;font-variant-numeric:tabular-nums;line-height:1.1}
+  .barra{height:30px;background:#16202b;border:1px solid #2c3b4d;border-radius:99px;
+         overflow:hidden;margin:10px 0 16px}
+  .barra i{display:block;height:100%;width:0;background:linear-gradient(90deg,#00BE62,#FF741F,#EB0000)}
+  table{width:100%;font-size:14px;border-collapse:collapse}
+  td{padding:6px 0;border-bottom:1px solid #1e2936;vertical-align:top}
+  td:first-child{color:#8fa3b8;width:48%}
+  td:last-child{font-weight:700;word-break:break-word}
+  .ok{color:#00ff9d}.mal{color:#ff6b6b}
+  .nota{font-size:13px;color:#8fa3b8;margin-top:16px;border-top:1px solid #1e2936;padding-top:12px}
+</style>
+</head>
+<body>
+
+<h1>Test de micrófono</h1>
+<p class="sub">Página independiente: sin service worker, sin datos guardados y sin nada
+del juego. Sirve para saber si el problema es la app o la tablet.</p>
+
+<button id="btn">ACTIVAR MICRÓFONO</button>
+<select id="sel"></select>
+
+<div class="num" id="db">—</div>
+<div class="barra"><i id="fill"></i></div>
+
+<table id="tabla"></table>
+
+<p class="nota">Habla y grita cerca del micrófono. Lo que importa es que el
+<b>RMS</b> se mueva. Si se queda clavado, el micrófono no está entregando audio
+utilizable a Chrome en esta tablet.</p>
+
+<script>
+/* Deliberadamente lo mas simple posible: nada de service worker, nada de
+   localStorage, ningun ajuste guardado. Si aqui tampoco funciona, el problema
+   no esta en el juego. */
+let ctx, an, src, mudo, buf, bufB, stream, corriendo = false;
+let minRms = Infinity, maxRms = -Infinity;
+
+const $ = id => document.getElementById(id);
+
+async function listar(){
+  try{
+    const d = await navigator.mediaDevices.enumerateDevices();
+    const mics = d.filter(x => x.kind === 'audioinput');
+    $('sel').innerHTML = mics.map((m,i) =>
+      `<option value="${m.deviceId}">${m.label || 'Micrófono ' + (i+1)}</option>`).join('');
+  }catch(e){}
+}
+
+async function arrancar(deviceId){
+  if(stream) stream.getTracks().forEach(t => t.stop());
+  if(ctx){ try{ await ctx.close(); }catch(e){} }
+
+  stream = await navigator.mediaDevices.getUserMedia({
+    audio: deviceId ? { deviceId: { exact: deviceId } } : true
+  });
+
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if(ctx.state === 'suspended') await ctx.resume();
+
+  src = ctx.createMediaStreamSource(stream);
+  an  = ctx.createAnalyser();
+  an.fftSize = 1024;
+  an.smoothingTimeConstant = 0;
+  mudo = ctx.createGain();
+  mudo.gain.value = 0;                 // silencio: no puede haber acople por la app
+  src.connect(an); an.connect(mudo); mudo.connect(ctx.destination);
+
+  buf  = new Float32Array(an.fftSize);
+  bufB = new Uint8Array(an.fftSize);
+  minRms = Infinity; maxRms = -Infinity;
+  corriendo = true;
+  listar();
+  bucle();
+}
+
+function bucle(){
+  if(!corriendo) return;
+  requestAnimationFrame(bucle);
+
+  an.getFloatTimeDomainData(buf);
+  an.getByteTimeDomainData(bufB);
+
+  let suma = 0, malas = 0, mn = Infinity, mx = -Infinity;
+  for(let i = 0; i < buf.length; i++){
+    const v = buf[i];
+    if(Number.isFinite(v) && Math.abs(v) <= 4){ suma += v*v; if(v<mn)mn=v; if(v>mx)mx=v; }
+    else malas++;
+  }
+  const rmsF = Math.sqrt(suma / Math.max(buf.length - malas, 1));
+
+  let sumaB = 0, mnB = 255, mxB = 0;
+  for(let i = 0; i < bufB.length; i++){
+    const v = (bufB[i]-128)/128; sumaB += v*v;
+    if(bufB[i]<mnB) mnB = bufB[i];
+    if(bufB[i]>mxB) mxB = bufB[i];
+  }
+  const rmsB = Math.sqrt(sumaB / bufB.length);
+
+  const rms = malas > buf.length*0.1 ? rmsB : rmsF;
+  if(rms < minRms) minRms = rms;
+  if(rms > maxRms) maxRms = rms;
+
+  const db = 20*Math.log10(rms + 1e-9);
+  $('db').textContent = db.toFixed(1) + ' dB';
+  $('fill').style.width = Math.max(0, Math.min(100, (db + 60)/60*100)) + '%';
+
+  const pista = stream.getAudioTracks()[0];
+  const aj = pista.getSettings ? pista.getSettings() : {};
+  const recorrido = (maxRms - minRms);
+
+  $('tabla').innerHTML = [
+    ['RMS ahora', rms.toFixed(4)],
+    ['RMS mínimo visto', minRms === Infinity ? '—' : minRms.toFixed(4)],
+    ['RMS máximo visto', maxRms === -Infinity ? '—' : maxRms.toFixed(4)],
+    ['¿el RMS se mueve?', recorrido > 0.02
+        ? '<span class="ok">SÍ — el micrófono responde</span>'
+        : '<span class="mal">NO — clavado, no entra audio</span>'],
+    ['micrófono', pista.label || '—'],
+    ['frecuencia', (aj.sampleRate || '—') + ' / ctx ' + ctx.sampleRate],
+    ['estado audio', ctx.state === 'running'
+        ? '<span class="ok">running</span>' : '<span class="mal">'+ctx.state+'</span>'],
+    ['pista', pista.readyState + (pista.muted ? ' · SILENCIADA' : '')],
+    ['muestras inválidas (float)', malas],
+    ['rango float', mn===Infinity ? '—' : mn.toFixed(3)+' … '+mx.toFixed(3)],
+    ['rango bytes', mnB + ' … ' + mxB],
+  ].map(f => `<tr><td>${f[0]}</td><td>${f[1]}</td></tr>`).join('');
+}
+
+$('btn').addEventListener('click', async () => {
+  try{ await arrancar($('sel').value || undefined); $('btn').textContent = 'REINICIAR'; }
+  catch(e){ $('db').textContent = 'Error'; $('tabla').innerHTML =
+    `<tr><td>Fallo</td><td class="mal">${e.name}: ${e.message}</td></tr>`; }
+});
+$('sel').addEventListener('change', () => { if(corriendo) arrancar($('sel').value); });
+listar();
+</script>
+</body>
+</html>
