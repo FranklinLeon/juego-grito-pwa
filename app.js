@@ -45,7 +45,7 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v7';
+const APP_VERSION = 'v8';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -118,7 +118,7 @@ let senalMala = 0;   // lecturas no-finitas seguidas (mic conectado pero con dat
    en vez de tener que adivinar desde otro sitio. */
 let diag = {
   intento:'—', trackLabel:'—', trackSR:0, ctxSR:0, canales:0,
-  rms:0, noFinitos:0, mudo:null, estadoPista:'—'
+  rms:0, noFinitos:0, mudo:null, estadoPista:'—', modo:'float'
 };
 
 /* No todos los microfonos/drivers Android aceptan igual las restricciones
@@ -189,6 +189,9 @@ async function iniciarAudio(deviceId){
 
   audioListo = true;
   senalMala = 0;
+  // cada mic se evalua de cero: si el nuevo entrega float sano, se usa float
+  modoBytes = false;
+  diag.modo = 'float';
   listarMicrofonos();
 
   // Si el stream "conecto" pero el mic entrega datos invalidos (pasa con
@@ -201,21 +204,55 @@ async function iniciarAudio(deviceId){
   }, 700);
 }
 
-// Nivel de sonido instantaneo en dBFS (RMS de la ventana de FFT)
+/* En estas tablets getFloatTimeDomainData() devuelve el buffer CORRUPTO:
+   cientos de muestras NaN mezcladas con valores imposiblemente grandes.
+   (Se confirmo en sitio: frecuencias ya coincidian y la pista no estaba
+   silenciada, asi que no era ni resampleo ni permisos.)
+
+   getByteTimeDomainData() lee lo mismo pero en enteros de 0..255, donde
+   POR CONSTRUCCION no puede haber NaN ni desbordes. Se pierde precision
+   (8 bits), pero de sobra para distinguir hablar de gritar.
+
+   Estrategia: se usa el float mientras esta sano -mejor precision- y en
+   cuanto se detecta que viene corrupto se pasa a bytes para el resto de
+   la sesion. */
+const LIM_MUESTRA = 4;      // |v| > 4 es imposible en audio normalizado: es basura
+let modoBytes = false;
+let buferByte = null;
+
 function leerDb(){
   if(!audioListo) return -99;
-  analizador.getFloatTimeDomainData(bufer);
 
-  /* Se promedia SOLO sobre las muestras validas. Antes bastaba una muestra
-     NaN para envenenar toda la suma y tirar la lectura entera; asi un mic
-     que entrega algun frame sucio sigue midiendo con el resto. */
-  let suma = 0, validas = 0, noFin = 0;
-  for(let i = 0; i < bufer.length; i++){
-    const v = bufer[i];
-    if(Number.isFinite(v)){ suma += v * v; validas++; }
-    else noFin++;
+  let suma = 0, validas = 0, malas = 0;
+
+  if(!modoBytes){
+    analizador.getFloatTimeDomainData(bufer);
+    for(let i = 0; i < bufer.length; i++){
+      const v = bufer[i];
+      // se descartan NaN/Infinity Y los valores desorbitados: eran los que
+      // hacian que el medidor se fuera al tope todo el rato
+      if(Number.isFinite(v) && Math.abs(v) <= LIM_MUESTRA){ suma += v * v; validas++; }
+      else malas++;
+    }
+    if(malas > bufer.length * 0.1){    // corrupcion sistematica -> cambiar de modo
+      modoBytes = true;
+      diag.modo = 'bytes (float corrupto)';
+    }
   }
-  diag.noFinitos = noFin;
+
+  if(modoBytes){
+    if(!buferByte || buferByte.length !== analizador.fftSize){
+      buferByte = new Uint8Array(analizador.fftSize);
+    }
+    analizador.getByteTimeDomainData(buferByte);
+    suma = 0; validas = 0; malas = 0;
+    for(let i = 0; i < buferByte.length; i++){
+      const v = (buferByte[i] - 128) / 128;   // 0..255 -> -1..1
+      suma += v * v; validas++;
+    }
+  }
+
+  diag.noFinitos = malas;
 
   if(!validas){ senalMala++; diag.rms = 0; return -99; }
 
@@ -621,6 +658,7 @@ function pintarDiag(){
     fila('estado pista', diag.estadoPista, diag.estadoPista === 'live' ? 'bien' : 'mal') +
     fila('muestras inválidas', diag.noFinitos, diag.noFinitos ? 'mal' : 'bien') +
     fila('RMS crudo', diag.rms.toFixed(6), diag.rms > 0 ? 'bien' : 'mal') +
+    fila('modo de lectura', diag.modo, diag.modo === 'float' ? 'bien' : 'mal') +
     fila('conectó al intento', diag.intento);
 }
 
