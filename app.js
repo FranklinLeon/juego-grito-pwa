@@ -40,12 +40,17 @@ const CFG_DEF = {
   variaTope: 8,   // cuanto varia el tope del medidor cuando no esta armado
 
   marca: 'mirasol',   // 'mirasol' | 'proauto' (solo cambia el logo)
-  micId: ''       // dispositivo de entrada elegido
+  micId: '',      // dispositivo de entrada elegido
+
+  /* false = peticion simple (la que funciona en TODAS las tablets).
+     true  = AGC apagado: separa mejor hablar de gritar, pero en algunos
+     drivers devuelve un stream saturado. Por eso viene apagado. */
+  micPreciso: false
 };
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v12';
+const APP_VERSION = 'v13';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -130,89 +135,60 @@ let diag = {
    justo lo que produce el -3.0 dB clavado. */
 let firmaPrev = null;
 
-/* No todos los microfonos/drivers Android aceptan igual las restricciones
-   estrictas (mono forzado, deviceId exacto). Un mic USB/Bluetooth que en
-   una tablet funciona bien puede en otra devolver un stream "valido" para
-   getUserMedia pero con datos corruptos (se ve como NIVEL=NaN en el panel),
-   porque el driver de esa tablet no soporta bien esa combinacion. Por eso
-   se prueba en 3 niveles, cada uno menos exigente que el anterior. */
-/* Lista de peticiones, de la mas exigente a la mas simple. La ultima es
-   exactamente la de test-mic.html, que es la que si funciona en las tablets
-   2 y 3. */
-function combosAudio(deviceId){
-  const base = { echoCancellation:false, noiseSuppression:false, autoGainControl:false };
-  return [
-    deviceId ? { ...base, channelCount:1, deviceId:{ exact:deviceId } } : { ...base, channelCount:1 },
-    deviceId ? { ...base, deviceId:{ exact:deviceId } } : { ...base },   // sin forzar mono
-    deviceId ? { deviceId:{ exact:deviceId } } : true                    // simple: como el test que funciona
-  ];
-}
+/* ===================================================================
+   CONEXION DEL MICROFONO
 
-/* Comprueba que el microfono ENTREGA AUDIO DE VERDAD.
+   Esto es una copia FIEL de test-mic.html, que es la unica version que
+   funciono en las tres tablets. Se hizo asi a proposito tras muchas
+   vueltas, y conviene no "mejorarlo":
 
-   Esto es lo que faltaba: en las tablets 2 y 3, pedir el mic con AGC y
-   supresion de ruido apagados NO lanza error -devuelve un stream que parece
-   valido- pero las muestras que entrega son basura fija (RMS clavado en
-   0.707). Como la cadena de respaldo solo avanzaba cuando getUserMedia
-   lanzaba una excepcion, nunca se llegaba a probar la peticion simple, que
-   es justo la que si funciona. Ahora se mide la señal antes de aceptarla. */
-async function senalViva(ms = 420){
-  /* Calentamiento imprescindible: recien montado el grafo el buffer todavia
-     esta a cero. Si se empieza a medir de inmediato, ese silencio inicial
-     hace que el minimo sea 0 y la comprobacion de "saturado" nunca salta. */
-  await new Promise(r => setTimeout(r, 200));
+   - UNA sola llamada a getUserMedia. La cadena de reintentos anterior
+     pedia y soltaba el microfono hasta 3 veces seguidas y eso dejaba el
+     audio de Android en mal estado: funcionaba un rato y luego no.
+   - Contexto NUEVO en cada conexion (se cierra el anterior), como hace
+     el test. Reutilizarlo daba problemas al cambiar de microfono.
+   - Peticion SIMPLE por defecto. Pedir el microfono con AGC y supresion
+     de ruido apagados no falla en algunas tablets, pero devuelve un
+     stream saturado (tono puro, RMS clavado en 0.707).
 
-  const t0 = performance.now();
-  let mn = Infinity, mx = -Infinity, muestras = 0, concMax = 0;
-  const bins = new Uint8Array(analizador.frequencyBinCount);
+   El modo preciso (AGC apagado) queda como opcion del panel: da mejor
+   separacion entre hablar y gritar, pero solo sirve donde el driver lo
+   soporta de verdad. Si falla al pedirlo, se cae solo al modo simple.
+   =================================================================== */
+async function iniciarAudio(deviceId){
+  if(streamActual) streamActual.getTracks().forEach(t => t.stop());
+  if(audioCtx){ try{ await audioCtx.close(); }catch(e){} audioCtx = null; }
 
-  while(performance.now() - t0 < ms){
-    await new Promise(r => setTimeout(r, 45));
+  const simple = deviceId ? { deviceId:{ exact:deviceId } } : true;
+  const preciso = deviceId
+    ? { deviceId:{ exact:deviceId }, echoCancellation:false, noiseSuppression:false, autoGainControl:false }
+    : { echoCancellation:false, noiseSuppression:false, autoGainControl:false };
 
-    analizador.getFloatTimeDomainData(bufer);
-    let suma = 0, validas = 0;
-    for(let i = 0; i < bufer.length; i++){
-      const v = bufer[i];
-      if(Number.isFinite(v) && Math.abs(v) <= LIM_MUESTRA){ suma += v * v; validas++; }
+  let usado = 'simple';
+  if(cfg.micPreciso){
+    try{
+      streamActual = await navigator.mediaDevices.getUserMedia({ audio: preciso });
+      usado = 'preciso (AGC apagado)';
+    }catch(e){
+      streamActual = await navigator.mediaDevices.getUserMedia({ audio: simple });
     }
-    const rms = validas ? Math.sqrt(suma / validas) : 0;
-    if(rms < mn) mn = rms;
-    if(rms > mx) mx = rms;
-
-    // concentracion espectral: un tono puro pone casi toda la energia en una
-    // sola banda; una voz o el ruido de una sala la reparten
-    analizador.getByteFrequencyData(bins);
-    let pico = 0, tot = 0;
-    for(let i = 0; i < bins.length; i++){ tot += bins[i]; if(bins[i] > pico) pico = bins[i]; }
-    if(tot) concMax = Math.max(concMax, (pico / tot) * bins.length);
-
-    muestras++;
+  }else{
+    streamActual = await navigator.mediaDevices.getUserMedia({ audio: simple });
   }
-  if(muestras < 2) return true;                 // no dio tiempo: no descartar
+  diag.intento = usado;
 
-  if(mx - mn < 1e-6) return false;              // congelada del todo
-  if(mn > 0.4) return false;                    // saturada de forma sostenida
-  if(mn > 0.2 && concMax > 40) return false;    // tono puro fuerte: no es una voz
-  return true;
-}
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') await audioCtx.resume();
 
-/* Monta el grafo de audio sobre un stream ya obtenido.
-
-   El analizador TIENE que tener camino hasta audioCtx.destination: Chrome
-   (sobre todo en Android) solo procesa los nodos que llegan a la salida. Se
-   pasa por una ganancia CERO para que el grafo corra sin que se oiga nada
-   (si se oyera, el micro se realimentaria con el altavoz).
-
-   Y las referencias de los nodos se guardan a nivel de modulo: como locales,
-   el recolector de basura puede llevarse el nodo del mic y cortar el audio. */
-function montarGrafo(){
   const pista = streamActual.getAudioTracks()[0];
   const ajustes = pista && pista.getSettings ? pista.getSettings() : {};
 
+  /* El analizador necesita camino hasta la salida para que Chrome procese el
+     grafo; la ganancia cero evita que el microfono se oiga por el altavoz. */
   fuenteMic = audioCtx.createMediaStreamSource(streamActual);
   analizador = audioCtx.createAnalyser();
   analizador.fftSize = 1024;
-  analizador.smoothingTimeConstant = 0;   // sin suavizado interno: lo hacemos nosotros
+  analizador.smoothingTimeConstant = 0;
   mudoMic = audioCtx.createGain();
   mudoMic.gain.value = 0;
   fuenteMic.connect(analizador);
@@ -226,52 +202,12 @@ function montarGrafo(){
   diag.trackSR    = ajustes.sampleRate || 0;
   diag.ctxSR      = audioCtx.sampleRate || 0;
   diag.canales    = ajustes.channelCount || 0;
-}
 
-async function iniciarAudio(deviceId){
-  if(streamActual) streamActual.getTracks().forEach(t => t.stop());
-
-  const Ctor = window.AudioContext || window.webkitAudioContext;
-  // contexto por defecto, igual que test-mic.html (que si funciona): forzar
-  // sampleRate a mano no aporto nada y es una variable menos que puede fallar
-  if(!audioCtx){ audioCtx = new Ctor(); }
-  if(audioCtx.state === 'suspended') await audioCtx.resume();
-
-  const combos = combosAudio(deviceId);
-  let ultimoError = null, aceptado = false;
-
-  for(let i = 0; i < combos.length; i++){
-    let s = null;
-    try{ s = await navigator.mediaDevices.getUserMedia({ audio: combos[i] }); }
-    catch(e){ ultimoError = e; continue; }
-
-    streamActual = s;
-    montarGrafo();
-    audioListo = true;
-    modoBytes = false;
-    diag.modo = 'float';
-
-    // el paso que faltaba: no basta con que getUserMedia no falle
-    if(await senalViva()){
-      diag.intento = `${i + 1} de ${combos.length}`;
-      aceptado = true;
-      break;
-    }
-    // señal muerta: se descarta este stream y se prueba una peticion mas simple
-    s.getTracks().forEach(t => t.stop());
-    audioListo = false;
-  }
-
-  if(!aceptado){
-    if(!streamActual) throw (ultimoError || new Error('Sin micrófono utilizable'));
-    // ninguno dio señal viva: se deja el ultimo montado y se avisa
-    audioListo = true;
-    diag.intento = 'ninguno dio señal';
-    toast('Ningún ajuste de micrófono da señal en esta tablet');
-  }
-
+  audioListo = true;
   senalMala = 0;
   firmaPrev = null;
+  modoBytes = false;
+  diag.modo = 'float';
   listarMicrofonos();
 }
 
@@ -817,6 +753,7 @@ function abrirPanel(){
   mostrar('p-admin');
   aplicarMarca();
   pintarPanel();
+  pintarPreciso();
   pintarLog();
   listarMicrofonos();
   if(!rafId) rafId = requestAnimationFrame(bucle);
@@ -968,6 +905,23 @@ $('btnReconectar').addEventListener('click', async () => {
   }catch(err){
     toast('No se pudo reconectar: ' + (err && err.name ? err.name : err));
   }
+});
+
+/* Modo preciso: apaga el AGC. Mejor separacion hablar/gritar donde el driver
+   lo soporta; en otras tablets deja el mic mudo, por eso es opcional. */
+function pintarPreciso(){
+  const b = $('btnPreciso');
+  if(!b) return;
+  b.textContent = cfg.micPreciso ? 'ACTIVADO' : 'apagado';
+  b.className = 'btn-cal ' + (cfg.micPreciso ? 'verde' : 'gris');
+}
+$('btnPreciso').addEventListener('click', async () => {
+  cfg.micPreciso = !cfg.micPreciso;
+  guardarCfg(); pintarPreciso();
+  try{
+    await iniciarAudio(cfg.micId || undefined);
+    toast(cfg.micPreciso ? 'Modo preciso activado' : 'Modo simple (compatible)');
+  }catch(e){ toast('No se pudo reconectar: ' + (e && e.name ? e.name : e)); }
 });
 
 $('selMic').addEventListener('change', async e => {
