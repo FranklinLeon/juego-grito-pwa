@@ -45,7 +45,7 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v6';
+const APP_VERSION = 'v7';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -113,6 +113,14 @@ let audioCtx = null, analizador = null, bufer = null, streamActual = null;
 let audioListo = false;
 let senalMala = 0;   // lecturas no-finitas seguidas (mic conectado pero con datos invalidos)
 
+/* Datos crudos del mic para el panel de diagnostico: con esto se ve de una
+   si el problema es la frecuencia, el track silenciado o muestras invalidas,
+   en vez de tener que adivinar desde otro sitio. */
+let diag = {
+  intento:'—', trackLabel:'—', trackSR:0, ctxSR:0, canales:0,
+  rms:0, noFinitos:0, mudo:null, estadoPista:'—'
+};
+
 /* No todos los microfonos/drivers Android aceptan igual las restricciones
    estrictas (mono forzado, deviceId exacto). Un mic USB/Bluetooth que en
    una tablet funciona bien puede en otra devolver un stream "valido" para
@@ -127,9 +135,12 @@ async function pedirStream(deviceId){
     deviceId ? { deviceId:{ exact:deviceId } } : true                    // solo el dispositivo, con AGC del sistema
   ];
   let ultimoError = null;
-  for(const audio of intentos){
-    try{ return await navigator.mediaDevices.getUserMedia({ audio }); }
-    catch(e){ ultimoError = e; }
+  for(let i = 0; i < intentos.length; i++){
+    try{
+      const s = await navigator.mediaDevices.getUserMedia({ audio: intentos[i] });
+      diag.intento = `${i + 1} de ${intentos.length}`;
+      return s;
+    }catch(e){ ultimoError = e; }
   }
   throw ultimoError;
 }
@@ -140,8 +151,34 @@ async function iniciarAudio(deviceId){
 
   streamActual = await pedirStream(deviceId);
 
-  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  /* CLAVE: el AudioContext queda clavado a la frecuencia de muestreo con la
+     que se creo (la del primer mic usado, normalmente el interno a 48 kHz).
+     Si luego se conecta un mic externo que trabaja a otra frecuencia (16 kHz
+     es comun en USB/Bluetooth), Chrome en Android no siempre resamplea bien
+     ese MediaStreamSource: entrega silencio o muestras basura. Por eso el mic
+     graba perfecto en la app de audio del sistema (que abre su propia cadena
+     a la frecuencia nativa) y en cambio aqui no daba nivel.
+     Solucion: si la frecuencia del mic no coincide, se recrea el contexto. */
+  const pista = streamActual.getAudioTracks()[0];
+  const cfgPista = pista && pista.getSettings ? pista.getSettings() : {};
+  const srMic = cfgPista.sampleRate || 0;
+
+  if(audioCtx && srMic && audioCtx.sampleRate !== srMic){
+    try{ await audioCtx.close(); }catch(e){}
+    audioCtx = null;
+  }
+  if(!audioCtx){
+    const Ctor = window.AudioContext || window.webkitAudioContext;
+    // si el navegador rechaza esa frecuencia, se cae al contexto por defecto
+    try{ audioCtx = srMic ? new Ctor({ sampleRate: srMic }) : new Ctor(); }
+    catch(e){ audioCtx = new Ctor(); }
+  }
   if(audioCtx.state === 'suspended') await audioCtx.resume();
+
+  diag.trackLabel = (pista && pista.label) || '—';
+  diag.trackSR    = srMic || 0;
+  diag.ctxSR      = audioCtx.sampleRate || 0;
+  diag.canales    = cfgPista.channelCount || 0;
 
   const fuente = audioCtx.createMediaStreamSource(streamActual);
   analizador = audioCtx.createAnalyser();
@@ -168,14 +205,24 @@ async function iniciarAudio(deviceId){
 function leerDb(){
   if(!audioListo) return -99;
   analizador.getFloatTimeDomainData(bufer);
-  let suma = 0;
-  for(let i = 0; i < bufer.length; i++) suma += bufer[i] * bufer[i];
-  const rms = Math.sqrt(suma / bufer.length);
+
+  /* Se promedia SOLO sobre las muestras validas. Antes bastaba una muestra
+     NaN para envenenar toda la suma y tirar la lectura entera; asi un mic
+     que entrega algun frame sucio sigue midiendo con el resto. */
+  let suma = 0, validas = 0, noFin = 0;
+  for(let i = 0; i < bufer.length; i++){
+    const v = bufer[i];
+    if(Number.isFinite(v)){ suma += v * v; validas++; }
+    else noFin++;
+  }
+  diag.noFinitos = noFin;
+
+  if(!validas){ senalMala++; diag.rms = 0; return -99; }
+
+  const rms = Math.sqrt(suma / validas);
+  diag.rms = rms;
   const db = 20 * Math.log10(rms + 1e-9);   // el epsilon evita log10(0)
 
-  // Con ciertos mics (sobre todo Bluetooth/USB con driver raro en Android)
-  // el stream conecta bien pero el buffer viene con NaN/Infinity. Sin este
-  // guard eso se propaga a nivel, barra, "PICO", decision de premio, etc.
   if(!Number.isFinite(db)){ senalMala++; return -99; }
   senalMala = 0;
   return db;
@@ -407,6 +454,7 @@ function bucle(){
     $('livePremio').textContent = senalMala > 20
       ? '⚠ mic sin señal válida — prueba otro micrófono'
       : etiquetaPremio(nivel);
+    pintarDiag();
     if(capturando) procesarCaptura(db);
   }
   else if(estado !== 'grito' && estado !== 'admin'){
@@ -554,6 +602,28 @@ function pintarPanel(){
     <div class="stat"><div class="n">${stats.alto}</div><div class="t">${cfg.nomAlto}</div></div>`;
 }
 
+/* Diagnostico en vivo del microfono. Deliberadamente muestra los datos
+   CRUDOS: si un mic no da nivel, esto dice por que sin tener que suponer. */
+function pintarDiag(){
+  const pista = streamActual ? streamActual.getAudioTracks()[0] : null;
+  if(pista){
+    diag.mudo = pista.muted;
+    diag.estadoPista = pista.readyState;
+  }
+  const desajuste = diag.trackSR && diag.ctxSR && diag.trackSR !== diag.ctxSR;
+  const fila = (k, v, cls) => `<div class="k">${k}</div><div class="v ${cls || ''}">${v}</div>`;
+  $('diag').innerHTML =
+    fila('micrófono', escapar(diag.trackLabel || '—')) +
+    fila('frecuencia mic', diag.trackSR ? diag.trackSR + ' Hz' : '—', desajuste ? 'mal' : 'bien') +
+    fila('frecuencia audio', diag.ctxSR ? diag.ctxSR + ' Hz' : '—', desajuste ? 'mal' : 'bien') +
+    fila('canales', diag.canales || '—') +
+    fila('silenciado', diag.mudo === null ? '—' : (diag.mudo ? 'SÍ' : 'no'), diag.mudo ? 'mal' : 'bien') +
+    fila('estado pista', diag.estadoPista, diag.estadoPista === 'live' ? 'bien' : 'mal') +
+    fila('muestras inválidas', diag.noFinitos, diag.noFinitos ? 'mal' : 'bien') +
+    fila('RMS crudo', diag.rms.toFixed(6), diag.rms > 0 ? 'bien' : 'mal') +
+    fila('conectó al intento', diag.intento);
+}
+
 function abrirPanel(){
   estado = 'admin';
   document.body.classList.add('panel-abierto');
@@ -694,6 +764,24 @@ $('btnFijarHabla').addEventListener('click', () => iniciarCaptura('piso'));
 $('btnFijarGrito').addEventListener('click', () => iniciarCaptura('grito'));
 $('btnMedirPico').addEventListener('click', () => iniciarCaptura('pico'));
 $('btnLimpiarLog').addEventListener('click', () => { logPicos = []; pintarLog(); });
+
+/* Reconectar: rehace toda la cadena de audio desde cero. Sirve cuando se
+   enchufa el mic con la app ya abierta (Android le asigna otro id y el
+   guardado queda apuntando a un dispositivo que ya no existe). */
+$('btnReconectar').addEventListener('click', async () => {
+  try{
+    if(streamActual) streamActual.getTracks().forEach(t => t.stop());
+    if(audioCtx){ try{ await audioCtx.close(); }catch(e){} audioCtx = null; }
+    audioListo = false;
+    cfg.micId = '';            // olvidar el mic guardado: se toma el del sistema
+    guardarCfg();
+    await iniciarAudio(undefined);
+    pintarPanel(); pintarDiag();
+    toast('Micrófono reconectado');
+  }catch(err){
+    toast('No se pudo reconectar: ' + (err && err.name ? err.name : err));
+  }
+});
 
 $('selMic').addEventListener('change', async e => {
   cfg.micId = e.target.value; guardarCfg();

@@ -364,6 +364,13 @@ body.sacudir{ animation: sacudida .11s linear infinite; }
 .live-datos{ font-size:13px; color:#8fa3b8; text-align:center; }
 .live-datos b{ color:#fff; }
 
+/* tabla de diagnostico del mic */
+.diag{ display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:13px; }
+.diag .k{ color:#8fa3b8; }
+.diag .v{ color:#fff; font-weight:700; word-break:break-word; }
+.diag .v.mal{ color:#ff6b6b; }
+.diag .v.bien{ color:#00ff9d; }
+
 .fila-btns{ display:flex; gap:9px; margin-top:11px; }
 .btn-cal{
   flex:1; font-family:inherit; font-size:14px; font-weight:800; cursor:pointer;
