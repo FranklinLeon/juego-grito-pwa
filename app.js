@@ -37,12 +37,13 @@ const CFG_DEF = {
   altoMax:  40,   // ...y como tarde a los MAX (elegido al azar)
   variaTope: 8,   // cuanto varia el tope del medidor cuando no esta armado
 
+  marca: 'mirasol',   // 'mirasol' | 'proauto' (solo cambia el logo)
   micId: ''       // dispositivo de entrada elegido
 };
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v3';
+const APP_VERSION = 'v4';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -204,7 +205,23 @@ let nivelSuavizado = 0;
 let finGrito = 0;
 let rafId = null;
 
-const CIRC = 2 * Math.PI * 100;   // circunferencia del arco (r=100)
+/* ---------------- Marca (Mirasol / Proauto) ---------------- */
+/* Lo unico que cambia entre las dos es el wordmark de arriba. Se puede
+   fijar por URL (?marca=proauto) para dejar cada tablet clavada en su
+   marca sin tener que entrar al panel. */
+const MARCAS = { mirasol:'marca/mirasol.png', proauto:'marca/proauto.png' };
+
+function aplicarMarca(){
+  const src = MARCAS[cfg.marca] || MARCAS.mirasol;
+  document.querySelectorAll('.marca-wordmark').forEach(img => { img.src = src; });
+  const bM = $('btnMarcaMirasol'), bP = $('btnMarcaProauto');
+  if(bM) bM.classList.toggle('sel', cfg.marca === 'mirasol');
+  if(bP) bP.classList.toggle('sel', cfg.marca === 'proauto');
+}
+(function marcaPorURL(){
+  const m = (new URLSearchParams(location.search).get('marca') || '').toLowerCase();
+  if(MARCAS[m] && m !== cfg.marca){ cfg.marca = m; guardarCfg(); }
+})();
 
 function irA(nuevo){
   estado = nuevo;
@@ -267,25 +284,31 @@ function empezarGrito(){
   irA('grito');
   bip(1100, .3, 'square', .2);
   pintarMarcasUmbral();
-  $('arcoRelleno').style.strokeDashoffset = CIRC;
-  $('nivelNum').textContent = '0';
-  $('picoVal').textContent  = '0';
+  $('barraFill').style.width = '0%';
+  $('nivelNum').textContent  = '0';
+  $('picoVal').textContent   = '0';
+  dibujarEscena(0);
   finGrito = performance.now() + cfg.msGrito;
   if(!rafId) rafId = requestAnimationFrame(bucle);
 }
 
-// marcas de los umbrales sobre el arco
+// marcas de los umbrales sobre la barra
 function pintarMarcasUmbral(){
-  const g = $('marcasUmbral');
-  g.innerHTML = '';
-  [[cfg.minBajo,''],[cfg.minMedio,''],[cfg.minAlto,'alto']].forEach(([n, cls]) => {
-    const a = (n / 100) * 2 * Math.PI;
-    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
-    l.setAttribute('x1', 120 + 90  * Math.cos(a)); l.setAttribute('y1', 120 + 90  * Math.sin(a));
-    l.setAttribute('x2', 120 + 110 * Math.cos(a)); l.setAttribute('y2', 120 + 110 * Math.sin(a));
-    l.setAttribute('class', 'marca ' + cls);
-    g.appendChild(l);
-  });
+  $('marcasUmbral').innerHTML =
+    [[cfg.minBajo,''],[cfg.minMedio,''],[cfg.minAlto,'alto']]
+      .map(([n, cls]) => `<i class="${cls}" style="left:${n}%"></i>`).join('');
+}
+
+/* El arte ES el medidor: la boca se abre y las lineas de grito salen
+   disparadas hacia afuera segun el volumen. */
+function dibujarEscena(nivel){
+  const k = Math.max(0, Math.min(100, nivel)) / 100;
+  $('bocaGrito').style.transform = `scale(${(1 + k * .34).toFixed(3)})`;
+  const desp = (k * 15).toFixed(1), esc = (1 + k * .55).toFixed(3), op = (.3 + k * .7).toFixed(2);
+  const li = $('lineasIzqG'), ld = $('lineasDerG');
+  li.style.transform = `translateX(-${desp}%) scale(${esc})`;
+  ld.style.transform = `translateX(${desp}%) scale(${esc})`;
+  li.style.opacity = ld.style.opacity = op;
 }
 
 /* ---------------- Bucle de render ---------------- */
@@ -302,12 +325,11 @@ function bucle(){
     const visto = Math.min(nivelSuavizado, topeVisto);           // lo que ve el jugador
     if(visto > picoVisto) picoVisto = Math.round(visto);
 
-    $('arcoRelleno').style.strokeDashoffset = CIRC * (1 - visto / 100);
+    $('barraFill').style.width = visto + '%';
     $('nivelNum').textContent = Math.round(visto);
     $('picoVal').textContent  = picoVisto;
+    dibujarEscena(visto);
     document.body.classList.toggle('sacudir', visto > 75);
-
-    if(visto > 55) lanzarOnda(visto);
 
     if(performance.now() >= finGrito) terminarGrito();
   }
@@ -321,18 +343,6 @@ function bucle(){
   else if(estado !== 'grito' && estado !== 'admin'){
     // nada que dibujar: ahorramos trabajo
   }
-}
-
-let ondaTic = 0;
-function lanzarOnda(intensidad){
-  const ahora = performance.now();
-  if(ahora - ondaTic < 260) return;
-  ondaTic = ahora;
-  const o = ondaTic % 2 === 0 ? $('onda1') : $('onda2');
-  o.animate(
-    [ { transform:'scale(.85)', opacity: .55 }, { transform:'scale(1.5)', opacity: 0 } ],
-    { duration: 900, easing: 'ease-out' }
-  );
 }
 
 /* ---------------- Fin del grito: decidir premio ---------------- */
@@ -396,7 +406,7 @@ function ajustarLienzo(){ cv.width = innerWidth; cv.height = innerHeight; }
 addEventListener('resize', ajustarLienzo); ajustarLienzo();
 
 function confeti(n){
-  const cols = ['#00e5ff','#ff2d95','#ffd23f','#00ff9d','#ffffff','#ff7a2d'];
+  const cols = ['#ffffff','#0a0a0a','#edebd6','#ffffff','#5cc0f0','#edebd6'];
   piezas = [];
   for(let i = 0; i < n; i++){
     piezas.push({
@@ -470,6 +480,7 @@ function abrirPanel(){
   estado = 'admin';
   document.body.classList.add('panel-abierto');
   mostrar('p-admin');
+  aplicarMarca();
   pintarPanel();
   pintarLog();
   listarMicrofonos();
@@ -610,10 +621,17 @@ $('btnResetStats').addEventListener('click', () => {
   guardarStats(); pintarPanel(); toast('Estadísticas borradas');
 });
 $('btnRestaurar').addEventListener('click', () => {
-  const mic = cfg.micId;
-  cfg = { ...CFG_DEF, micId: mic };
+  const mic = cfg.micId, marca = cfg.marca;   // no se pierde el mic ni la marca elegida
+  cfg = { ...CFG_DEF, micId: mic, marca };
   guardarCfg(); pintarPanel(); pintarTiraPremios(); toast('Valores restaurados');
 });
+
+const elegirMarca = (m) => {
+  cfg.marca = m; guardarCfg(); aplicarMarca();
+  toast(m === 'proauto' ? 'Marca: Proauto' : 'Marca: Mirasol');
+};
+$('btnMarcaMirasol').addEventListener('click', () => elegirMarca('mirasol'));
+$('btnMarcaProauto').addEventListener('click', () => elegirMarca('proauto'));
 $('btnCerrarPanel').addEventListener('click', () => {
   pintarTiraPremios();
   irA(audioListo ? 'reposo' : 'permiso');
@@ -624,6 +642,8 @@ $('btnTuerca').addEventListener('click', (e) => { e.stopPropagation(); abrirPane
 
 // evita el zoom por doble toque
 document.addEventListener('dblclick', e => e.preventDefault(), { passive:false });
+
+aplicarMarca();
 
 /* ---------------- Service worker (offline) ---------------- */
 if('serviceWorker' in navigator){

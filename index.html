@@ -3,102 +3,89 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#07070f">
+<meta name="theme-color" content="#1B8ACB">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Grita para Ganar</title>
+<title>Gr&iacute;talo</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="styles.css">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
 <body>
 
-<div class="fondo"></div>
-<div class="vineta"></div>
-
 <!-- ============ PERMISO / ARRANQUE ============ -->
 <section class="pantalla activa" id="p-permiso">
-  <div class="mic-glifo grande">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-      <rect x="9" y="2" width="6" height="12" rx="3"/>
-      <path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/><path d="M8 22h8"/>
-    </svg>
+  <div class="poster-wrap">
+    <div class="poster">
+      <img class="pz marca-wordmark" data-pz="wordmark" src="marca/mirasol.png" alt="">
+      <img class="pz" data-pz="gritalo"  src="marca/gritalo.png" alt="Gr&iacute;talo">
+      <img class="pz" data-pz="lineas-izq" src="marca/lineas-izq.png" alt="">
+      <img class="pz" data-pz="boca" src="marca/boca.png" alt="">
+      <img class="pz" data-pz="lineas-der" src="marca/lineas-der.png" alt="">
+      <img class="pz" data-pz="eslogan" src="marca/eslogan.png" alt="Si lo quieres de verdad, que todo el mundo te escuche...">
+    </div>
   </div>
-  <h1 class="titulo-xl">GRITA<span class="acento"> PARA </span>GANAR</h1>
-  <p class="bajada">Toca para activar el micr&oacute;fono y empezar</p>
-  <button class="btn-primario" id="btnActivar">ACTIVAR MICR&Oacute;FONO</button>
-  <p class="nota" id="notaPermiso">Se necesita permiso del micr&oacute;fono para medir tu grito.</p>
+  <div class="pie">
+    <button class="btn-negro" id="btnActivar">ACTIVAR MICR&Oacute;FONO</button>
+    <p class="nota" id="notaPermiso">Se necesita permiso del micr&oacute;fono para medir tu grito.</p>
+  </div>
 </section>
 
 <!-- ============ REPOSO / ATRACCION ============ -->
 <section class="pantalla" id="p-reposo">
-  <div class="halo-pulso"></div>
-  <div class="mic-glifo flotante">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-      <rect x="9" y="2" width="6" height="12" rx="3"/>
-      <path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/><path d="M8 22h8"/>
-    </svg>
+  <div class="poster-wrap">
+    <div class="poster respira">
+      <img class="pz marca-wordmark" data-pz="wordmark" src="marca/mirasol.png" alt="">
+      <img class="pz" data-pz="gritalo"  src="marca/gritalo.png" alt="Gr&iacute;talo">
+      <img class="pz late-izq" data-pz="lineas-izq" src="marca/lineas-izq.png" alt="">
+      <img class="pz boca-late" data-pz="boca" src="marca/boca.png" alt="">
+      <img class="pz late-der" data-pz="lineas-der" src="marca/lineas-der.png" alt="">
+      <img class="pz" data-pz="eslogan" src="marca/eslogan.png" alt="Si lo quieres de verdad, que todo el mundo te escuche...">
+    </div>
   </div>
-  <h1 class="titulo-xl">GRITA<span class="acento"> PARA </span>GANAR</h1>
-  <p class="bajada">&iquest;Qu&eacute; tan fuerte puedes gritar?</p>
-  <div class="premios-tira" id="tiraPremios"></div>
-  <div class="toca-empezar">TOCA PARA EMPEZAR</div>
+  <div class="pie">
+    <div class="premios-tira" id="tiraPremios"></div>
+    <div class="toca-empezar">TOCA PARA EMPEZAR</div>
+  </div>
 </section>
 
 <!-- ============ CUENTA REGRESIVA ============ -->
 <section class="pantalla" id="p-cuenta">
   <p class="prepara">PREP&Aacute;RATE</p>
   <div class="cuenta-num" id="cuentaNum">3</div>
-  <div class="anillo-cuenta"></div>
 </section>
 
 <!-- ============ GRITO ============ -->
 <section class="pantalla" id="p-grito">
-  <p class="grita-txt">&iexcl;GRITAAA!</p>
+  <img class="gritalo-top" src="marca/gritalo.png" alt="Gr&iacute;talo">
 
-  <div class="medidor-wrap">
-    <svg class="aguja" viewBox="0 0 240 240" aria-hidden="true">
-      <defs>
-        <linearGradient id="gradArco" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%"   stop-color="#00ff9d"/>
-          <stop offset="45%"  stop-color="#ffd23f"/>
-          <stop offset="75%"  stop-color="#ff7a2d"/>
-          <stop offset="100%" stop-color="#ff2d55"/>
-        </linearGradient>
-        <filter id="brilloArco" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="b"/>
-          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-      <circle class="pista" cx="120" cy="120" r="100"/>
-      <circle class="relleno" id="arcoRelleno" cx="120" cy="120" r="100" filter="url(#brilloArco)"/>
-      <g id="marcasUmbral"></g>
-    </svg>
-
-    <div class="centro-medidor">
-      <div class="nivel-num" id="nivelNum">0</div>
-      <div class="nivel-lbl">NIVEL</div>
-    </div>
-    <div class="onda" id="onda1"></div>
-    <div class="onda" id="onda2"></div>
+  <div class="escena">
+    <img class="esc-lineas izq" id="lineasIzqG" src="marca/lineas-izq.png" alt="">
+    <img class="esc-boca" id="bocaGrito" src="marca/boca.png" alt="">
+    <img class="esc-lineas der" id="lineasDerG" src="marca/lineas-der.png" alt="">
+    <!-- el nivel va DENTRO de la boca: el interior oscuro hace de fondo -->
+    <div class="nivel-num" id="nivelNum">0</div>
   </div>
 
-  <div class="barra-pico">
-    <div class="pico-lbl">PICO</div>
-    <div class="pico-val" id="picoVal">0</div>
+  <div class="medidor">
+    <div class="barra">
+      <div class="barra-fill" id="barraFill"></div>
+      <div class="barra-marcas" id="marcasUmbral"></div>
+    </div>
+    <div class="pico-linea">PICO <b id="picoVal">0</b></div>
   </div>
 </section>
 
 <!-- ============ PREMIO ============ -->
 <section class="pantalla" id="p-premio">
   <canvas id="confeti"></canvas>
-  <div class="premio-icono" id="premioIcono">🥤</div>
+  <div class="premio-icono" id="premioIcono">&#129348;</div>
   <h2 class="premio-titulo" id="premioTitulo">&iexcl;GANASTE!</h2>
   <p class="premio-nombre" id="premioNombre">Lata de Cola</p>
   <div class="premio-nivel">Tu grito lleg&oacute; a <b id="premioNivel">0</b></div>
   <div class="premio-cta" id="premioCta">Reclama tu premio</div>
-  <button class="btn-secundario" id="btnOtraVez">JUGAR OTRA VEZ</button>
+  <button class="btn-blanco" id="btnOtraVez">JUGAR OTRA VEZ</button>
 </section>
 
 <!-- ============ PANEL DE AJUSTES ============ -->
@@ -106,6 +93,16 @@
   <div class="panel-scroll">
     <h2 class="panel-h1">Ajustes <span class="panel-ver" id="panelVer"></span></h2>
     <p class="panel-sub">Los cambios se guardan en esta tablet.</p>
+
+    <div class="tarjeta">
+      <h3>Marca</h3>
+      <p class="ayuda">Elige el logo que se muestra en pantalla. Tambi&eacute;n puedes fijarlo por
+        URL con <b>?marca=mirasol</b> o <b>?marca=proauto</b>.</p>
+      <div class="fila-btns">
+        <button class="btn-marca" id="btnMarcaMirasol"><img src="marca/mirasol.png" alt="Mirasol"></button>
+        <button class="btn-marca" id="btnMarcaProauto"><img src="marca/proauto.png" alt="Proauto"></button>
+      </div>
+    </div>
 
     <div class="tarjeta">
       <h3>Micr&oacute;fono en vivo</h3>
@@ -178,7 +175,7 @@
 
     <div class="tarjeta">
       <button class="btn-cal gris ancho" id="btnRestaurar">Restaurar valores por defecto</button>
-      <button class="btn-primario ancho" id="btnCerrarPanel">VOLVER AL JUEGO</button>
+      <button class="btn-negro ancho" id="btnCerrarPanel">VOLVER AL JUEGO</button>
     </div>
   </div>
 </section>

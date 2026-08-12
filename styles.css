@@ -1,26 +1,22 @@
 /* ===================================================================
-   GRITA PARA GANAR - PWA
-   Paleta generica (sin marca). Para rebrandear cambia los tokens de
-   :root y listo: todo el juego usa estas variables.
+   GRÍTALO - PWA
+   Identidad tomada del arte original (Mirasol / Proauto): azul plano,
+   grotesca pesada, halftone y lineas de comic. Sin degradados ni glow:
+   el diseño es intencionalmente PLANO y de alto contraste.
+
+   La tipografia de marca (GRÍTALO, eslogan, wordmarks) viene de los
+   PNG recortados del arte -> calza exacto con el original. El resto de
+   la UI usa una grotesca del sistema.
    =================================================================== */
 
 :root{
-  --fondo:      #07070f;
-  --fondo-2:    #14082b;
-  --fondo-3:    #2a0a3d;
-  --tinta:      #ffffff;
-  --tinta-sec:  #9aa4c8;
+  --azul:    #1B8ACB;   /* fondo de marca */
+  --azul-h:  #1577b1;   /* hover/presionado */
+  --blanco:  #ffffff;
+  --negro:   #0a0a0a;
+  --crema:   #edebd6;   /* el crema de la boca halftone */
 
-  --acento:     #00e5ff;   /* cian electrico  */
-  --acento-2:   #ff2d95;   /* magenta         */
-  --oro:        #ffd23f;   /* premio/destaque */
-  --verde:      #00ff9d;
-  --naranja:    #ff7a2d;
-  --rojo:       #ff2d55;
-
-  --r-g: 28px;
-  --sombra: 0 20px 60px rgba(0,0,0,.55);
-  --fuente: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --fuente: "Helvetica Neue", Helvetica, Arial, "Segoe UI", Roboto, sans-serif;
 }
 
 *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -29,34 +25,12 @@ html,body{ width:100%; height:100%; overflow:hidden; }
 
 body{
   font-family: var(--fuente);
-  color: var(--tinta);
-  background: var(--fondo);
+  color: var(--blanco);
+  background: var(--azul);
   position: fixed; inset:0;
   touch-action: manipulation;
   user-select: none; -webkit-user-select:none;
   overscroll-behavior: none;
-}
-
-/* ---------- Fondo animado ---------- */
-.fondo{
-  position:absolute; inset:-30%;
-  z-index:0; pointer-events:none;
-  background:
-    radial-gradient(closest-side at 30% 35%, rgba(0,229,255,.22), transparent 70%),
-    radial-gradient(closest-side at 72% 62%, rgba(255,45,149,.20), transparent 70%),
-    radial-gradient(closest-side at 50% 90%, rgba(255,210,63,.12), transparent 70%),
-    linear-gradient(160deg, var(--fondo) 0%, var(--fondo-2) 55%, var(--fondo-3) 100%);
-  filter: blur(10px);
-  animation: derivar 18s ease-in-out infinite alternate;
-}
-@keyframes derivar{
-  0%   { transform: translate3d(0,0,0) scale(1);      }
-  50%  { transform: translate3d(2%,-2%,0) scale(1.06);}
-  100% { transform: translate3d(-2%,1%,0) scale(1.03);}
-}
-.vineta{
-  position:absolute; inset:0; z-index:1; pointer-events:none;
-  background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,.55) 100%);
 }
 
 /* ---------- Pantallas ---------- */
@@ -64,218 +38,233 @@ body{
   position:absolute; inset:0; z-index:2;
   display:flex; flex-direction:column;
   align-items:center; justify-content:center;
-  text-align:center; padding: 5vmin;
-  gap: 2.2vmin;
+  text-align:center;
+  padding: 2.5vmin 3vmin calc(2.5vmin + env(safe-area-inset-bottom,0px));
+  gap: 1.6vmin;
   opacity:0; pointer-events:none;
-  transform: scale(1.05);
-  transition: opacity .45s ease, transform .45s ease;
+  transition: opacity .35s ease;
 }
-.pantalla.activa{ opacity:1; pointer-events:auto; transform:scale(1); }
+.pantalla.activa{ opacity:1; pointer-events:auto; }
 
-/* ---------- Tipografia ---------- */
-.titulo-xl{
-  font-size: clamp(34px, 9.5vmin, 110px);
-  font-weight: 900; line-height:.98;
-  letter-spacing: -.02em;
-  text-shadow: 0 0 40px rgba(0,229,255,.35);
+/* ===================================================================
+   EL POSTER  (reposo / permiso)
+   Reproduce el arte original: cada pieza va posicionada con el mismo
+   porcentaje que ocupa en el archivo maestro (canvas 2835x3402).
+   =================================================================== */
+.poster-wrap{
+  flex: 1 1 auto; min-height:0; width:100%;
+  display:flex; align-items:center; justify-content:center;
 }
-.titulo-xl .acento{
-  background: linear-gradient(92deg, var(--acento), var(--acento-2));
-  -webkit-background-clip:text; background-clip:text; color:transparent;
+.poster{
+  position:relative;
+  aspect-ratio: 2835 / 3402;
+  height:100%; max-width:100%;
 }
-.bajada{
-  font-size: clamp(14px, 2.8vmin, 26px);
-  color: var(--tinta-sec); font-weight:600; letter-spacing:.02em;
-}
-.nota{ font-size: clamp(11px, 1.9vmin, 15px); color: var(--tinta-sec); opacity:.75; max-width: 42ch; }
+.pz{ position:absolute; display:block; }
 
-/* ---------- Glifo del microfono ---------- */
-.mic-glifo{ width: clamp(64px, 15vmin, 150px); color: var(--acento); }
-.mic-glifo svg{ width:100%; height:auto; filter: drop-shadow(0 0 22px rgba(0,229,255,.55)); }
-.mic-glifo.grande{ margin-bottom:1vmin; }
-.mic-glifo.flotante{ animation: flotar 3.2s ease-in-out infinite; }
-@keyframes flotar{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-2.2vmin)} }
+.pz[data-pz="wordmark"]   { left:22.15%; top: 7.35%; width:55.66%; }
+.pz[data-pz="gritalo"]    { left:12.42%; top:20.52%; width:76.44%; }
+.pz[data-pz="boca"]       { left:30.16%; top:37.92%; width:36.54%; }
+.pz[data-pz="lineas-izq"] { left: 5.75%; top:41.80%; width:16.16%; }
+.pz[data-pz="lineas-der"] { left:68.57%; top:66.17%; width:16.68%; }
+.pz[data-pz="eslogan"]    { left: 4.97%; top:84.10%; width:90.05%; }
 
-.halo-pulso{
-  position:absolute; width: 62vmin; height:62vmin; border-radius:50%;
-  background: radial-gradient(circle, rgba(0,229,255,.20), transparent 62%);
-  animation: latir 3.4s ease-in-out infinite; pointer-events:none;
+/* la boca "respira" y las lineas laten en la pantalla de atraccion */
+.poster.respira .boca-late{ animation: bocaLate 3.2s ease-in-out infinite; transform-origin:50% 45%; }
+@keyframes bocaLate{ 0%,100%{ transform:scale(1) } 50%{ transform:scale(1.045) } }
+.poster.respira .late-izq{ animation: lineaLate 3.2s ease-in-out infinite; transform-origin:100% 50%; }
+.poster.respira .late-der{ animation: lineaLate 3.2s ease-in-out infinite .15s; transform-origin:0% 50%; }
+@keyframes lineaLate{
+  0%,100%{ transform:translate(0,0) scale(1); opacity:.92 }
+  50%    { transform:translate(-2%,0) scale(1.09); opacity:1 }
 }
-@keyframes latir{ 0%,100%{transform:scale(.9); opacity:.5} 50%{transform:scale(1.12); opacity:1} }
+
+/* ---------- Pie de pantalla (CTA / botones) ---------- */
+.pie{
+  flex: 0 0 auto; width:100%;
+  display:flex; flex-direction:column; align-items:center; gap:1.4vmin;
+}
 
 /* ---------- Botones ---------- */
-.btn-primario{
-  font-family:inherit; font-size: clamp(15px, 2.9vmin, 24px); font-weight:900;
-  letter-spacing:.06em; color:#06121a; cursor:pointer;
-  background: linear-gradient(96deg, var(--acento), #7af7ff);
-  border:none; border-radius: 999px;
-  padding: clamp(14px,2.4vmin,22px) clamp(30px,5.6vmin,58px);
-  box-shadow: 0 12px 34px rgba(0,229,255,.35);
-  transition: transform .12s ease, box-shadow .2s ease;
-  margin-top: 1.4vmin;
+.btn-negro, .btn-blanco{
+  font-family:inherit; font-weight:800; cursor:pointer;
+  font-size: clamp(14px, 2.5vmin, 22px);
+  letter-spacing:.04em; border:none; border-radius:999px;
+  padding: clamp(13px,2.1vmin,20px) clamp(28px,5vmin,52px);
+  transition: transform .12s ease;
 }
-.btn-primario:active{ transform: scale(.96); box-shadow: 0 6px 18px rgba(0,229,255,.3); }
-.btn-secundario{
-  font-family:inherit; font-size: clamp(13px,2.3vmin,19px); font-weight:800;
-  letter-spacing:.05em; color:var(--tinta); cursor:pointer;
-  background: rgba(255,255,255,.10);
-  border:2px solid rgba(255,255,255,.28); border-radius:999px;
-  padding: clamp(11px,1.9vmin,17px) clamp(24px,4.4vmin,44px);
-  margin-top:1.6vmin; backdrop-filter: blur(6px);
+.btn-negro { background: var(--negro);  color: var(--blanco); }
+.btn-blanco{ background: var(--blanco); color: var(--negro); }
+.btn-negro:active, .btn-blanco:active{ transform: scale(.96); }
+.btn-negro.ancho{ width:100%; display:block; margin-top:10px; }
+
+.nota{
+  font-size: clamp(11px, 1.8vmin, 15px); font-weight:600;
+  color: rgba(255,255,255,.85); max-width:44ch; line-height:1.45;
 }
-.btn-secundario:active{ transform:scale(.96); }
 
 /* ---------- Tira de premios (reposo) ---------- */
-.premios-tira{ display:flex; gap: clamp(8px,1.8vmin,20px); flex-wrap:wrap; justify-content:center; margin-top:1.4vmin; }
+.premios-tira{ display:flex; gap: clamp(7px,1.4vmin,16px); flex-wrap:wrap; justify-content:center; }
 .premio-chip{
-  display:flex; align-items:center; gap:.7em;
-  background: rgba(255,255,255,.07);
-  border:1px solid rgba(255,255,255,.16);
-  border-radius: 999px;
-  padding: clamp(7px,1.3vmin,13px) clamp(14px,2.4vmin,24px);
-  font-size: clamp(11px,2vmin,17px); font-weight:700;
-  backdrop-filter: blur(8px);
+  display:flex; align-items:center; gap:.55em;
+  background: rgba(255,255,255,.16);
+  border:2px solid var(--blanco); border-radius:999px;
+  padding: clamp(6px,1vmin,11px) clamp(12px,2vmin,20px);
+  font-size: clamp(11px,1.8vmin,16px); font-weight:800;
 }
-.premio-chip .emo{ font-size:1.5em; line-height:1; }
-.premio-chip.alto{ border-color: rgba(255,210,63,.5); box-shadow: 0 0 22px rgba(255,210,63,.18) inset; }
+.premio-chip .emo{ font-size:1.45em; line-height:1; }
+.premio-chip.alto{ background: var(--blanco); color: var(--negro); }
 
 .toca-empezar{
-  margin-top: 2.6vmin;
-  font-size: clamp(14px,3vmin,28px); font-weight:900; letter-spacing:.16em;
-  border:3px solid var(--oro); border-radius:999px;
-  padding: clamp(12px,2.2vmin,22px) clamp(28px,5.4vmin,56px);
-  color: var(--oro);
-  animation: respirar 1.6s ease-in-out infinite;
-  box-shadow: 0 0 30px rgba(255,210,63,.25);
+  font-size: clamp(14px,2.7vmin,26px); font-weight:900; letter-spacing:.14em;
+  background: var(--negro); color: var(--blanco); border-radius:999px;
+  padding: clamp(11px,1.9vmin,20px) clamp(26px,4.6vmin,50px);
+  animation: respirar 1.5s ease-in-out infinite;
 }
-@keyframes respirar{ 0%,100%{transform:scale(1); opacity:.92} 50%{transform:scale(1.05); opacity:1} }
+@keyframes respirar{ 0%,100%{ transform:scale(1) } 50%{ transform:scale(1.055) } }
 
 /* ---------- Cuenta regresiva ---------- */
 .prepara{
-  font-size: clamp(14px,3.2vmin,30px); font-weight:800; letter-spacing:.3em;
-  color: var(--tinta-sec);
+  font-size: clamp(14px,3vmin,30px); font-weight:900; letter-spacing:.3em;
+  color: var(--blanco);
 }
 .cuenta-num{
-  font-size: clamp(120px, 44vmin, 460px); font-weight:900; line-height:.9;
-  background: linear-gradient(180deg, #fff, var(--acento));
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-  filter: drop-shadow(0 0 50px rgba(0,229,255,.5));
+  font-size: clamp(140px, 48vmin, 500px); font-weight:900; line-height:.88;
+  color: var(--blanco); font-variant-numeric: tabular-nums;
 }
 .cuenta-num.pop{ animation: golpe .85s cubic-bezier(.2,.9,.25,1); }
 @keyframes golpe{
-  0%{ transform:scale(.25); opacity:0 }
-  35%{ transform:scale(1.18); opacity:1 }
-  100%{ transform:scale(1); opacity:1 }
+  0%  { transform:scale(.3);  opacity:0 }
+  35% { transform:scale(1.16); opacity:1 }
+  100%{ transform:scale(1);   opacity:1 }
 }
-.anillo-cuenta{
-  position:absolute; width:52vmin; height:52vmin; border-radius:50%;
-  border:3px solid rgba(0,229,255,.28);
-  animation: expandir 1s ease-out infinite; pointer-events:none;
-}
-@keyframes expandir{ 0%{transform:scale(.6); opacity:.9} 100%{transform:scale(1.35); opacity:0} }
 
-/* ---------- Pantalla de grito ---------- */
-.grita-txt{
-  font-size: clamp(30px, 8vmin, 92px); font-weight:900; letter-spacing:.04em;
-  background: linear-gradient(92deg, var(--oro), var(--naranja), var(--rojo));
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-  animation: temblor .22s linear infinite;
+/* ===================================================================
+   PANTALLA DE GRITO
+   La boca crece con el volumen y las lineas salen disparadas hacia
+   afuera: el propio arte hace de medidor, no un widget aparte.
+   =================================================================== */
+.gritalo-top{
+  flex:0 0 auto; width: min(72vw, 430px); max-height:14vh; object-fit:contain;
+  animation: temblor .2s linear infinite;
 }
 @keyframes temblor{
-  0%,100%{ transform: translate(0,0) }
-  25%{ transform: translate(-.35vmin,.25vmin) }
-  75%{ transform: translate(.35vmin,-.25vmin) }
+  0%,100%{ transform: translate(0,0) rotate(0) }
+  25%    { transform: translate(-.3vmin,.2vmin) rotate(-.4deg) }
+  75%    { transform: translate(.3vmin,-.2vmin) rotate(.4deg) }
 }
 
-.medidor-wrap{
+/* Se dimensiona por ANCHO (no por alto): si se deja que flex estire la
+   altura, el max-width anula el aspect-ratio, la caja deja de calzar con
+   la boca y las lineas -que se anclan a los bordes de la caja- quedan
+   flotando lejos del dibujo. */
+.escena{
+  flex: 0 1 auto;
   position:relative;
-  width: min(62vmin, 480px); height: min(62vmin, 480px);
-  display:grid; place-items:center;
+  width: min(38vmin, 42vh);
+  aspect-ratio: 760 / 1062;
+  /* la boca crece hasta x1.34 y se desborda de su caja: este margen
+     reserva ese espacio para que no pise la barra de nivel */
+  margin-bottom: 10vmin;
 }
-.aguja{ width:100%; height:100%; transform: rotate(-90deg); }
-.aguja .pista{
-  fill:none; stroke: rgba(255,255,255,.09); stroke-width:16; stroke-linecap:round;
+.esc-boca{
+  width:100%; height:100%; object-fit:contain; display:block;
+  transform-origin: 50% 45%;
+  will-change: transform;
 }
-.aguja .relleno{
-  fill:none; stroke: url(#gradArco); stroke-width:16; stroke-linecap:round;
-  stroke-dasharray: 628.3; stroke-dashoffset: 628.3;
-  transition: stroke-dashoffset .07s linear;
+.esc-lineas{
+  position:absolute; width:46%;
+  will-change: transform, opacity;
 }
-.aguja .marca{ stroke: rgba(255,255,255,.55); stroke-width:3; }
-.aguja .marca.alto{ stroke: var(--oro); stroke-width:4; }
+.esc-lineas.izq{ right:100%; top: 2%; transform-origin:100% 50%; }
+.esc-lineas.der{ left:100%;  top:52%; transform-origin:0% 50%; }
 
-.centro-medidor{ position:absolute; display:grid; place-items:center; }
+/* ---------- Medidor ---------- */
+.medidor{ flex:0 0 auto; width:min(92vw, 620px); display:flex; flex-direction:column; align-items:center; gap:1vmin; margin-top:1vmin; }
+
+/* El numero vive DENTRO de la boca (sobre el interior oscuro). Asi no
+   compite por espacio ni lo tapa la boca cuando esta crece al gritar. */
 .nivel-num{
-  font-size: clamp(56px, 19vmin, 190px); font-weight:900; line-height:1;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 40px rgba(255,255,255,.28);
+  position:absolute; left:0; right:0; top:41%;
+  transform: translateY(-50%);
+  font-size: clamp(44px, 12vmin, 118px); font-weight:900; line-height:1;
+  font-variant-numeric: tabular-nums; color: var(--blanco);
+  text-align:center; pointer-events:none;
+  text-shadow: 0 4px 22px rgba(0,0,0,.55);
 }
-.nivel-lbl{
-  font-size: clamp(10px,1.9vmin,16px); font-weight:800; letter-spacing:.42em;
-  color: var(--tinta-sec); margin-top:.6vmin;
+.barra{
+  position:relative; width:100%;
+  height: clamp(18px, 3.2vmin, 34px);
+  background: rgba(0,0,0,.28);
+  border: 3px solid var(--negro); border-radius:999px;
+  overflow:hidden;
 }
-.onda{
-  position:absolute; border-radius:50%; pointer-events:none;
-  border:2px solid rgba(255,255,255,.22);
-  width:100%; height:100%; opacity:0;
+.barra-fill{
+  height:100%; width:0%; background: var(--blanco);
+  transition: width .07s linear;
 }
+.barra-marcas{ position:absolute; inset:0; pointer-events:none; }
+.barra-marcas i{
+  position:absolute; top:0; bottom:0; width:3px;
+  background: var(--negro); opacity:.55;
+}
+.barra-marcas i.alto{ width:5px; opacity:1; }
+.pico-linea{
+  font-size: clamp(11px,1.9vmin,17px); font-weight:800; letter-spacing:.22em;
+  color: rgba(255,255,255,.9);
+}
+.pico-linea b{ font-size:1.5em; color:var(--blanco); font-variant-numeric:tabular-nums; }
 
-.barra-pico{ display:flex; align-items:baseline; gap:1.2vmin; margin-top:1vmin; }
-.pico-lbl{ font-size: clamp(10px,1.9vmin,16px); font-weight:800; letter-spacing:.3em; color:var(--tinta-sec); }
-.pico-val{ font-size: clamp(20px,4.4vmin,42px); font-weight:900; color:var(--oro); font-variant-numeric:tabular-nums; }
-
-body.sacudir{ animation: sacudida .12s linear infinite; }
+body.sacudir{ animation: sacudida .11s linear infinite; }
 @keyframes sacudida{
   0%,100%{ transform: translate(0,0) }
-  33%{ transform: translate(-2px,1px) }
-  66%{ transform: translate(2px,-1px) }
+  33%    { transform: translate(-3px,2px) }
+  66%    { transform: translate(3px,-2px) }
 }
 
 /* ---------- Premio ---------- */
 #confeti{ position:absolute; inset:0; z-index:-1; pointer-events:none; }
 .premio-icono{
-  font-size: clamp(70px, 24vmin, 230px); line-height:1;
+  font-size: clamp(74px, 25vmin, 240px); line-height:1;
   animation: entrarPremio .75s cubic-bezier(.2,1.1,.3,1);
-  filter: drop-shadow(0 14px 40px rgba(0,0,0,.5));
 }
 @keyframes entrarPremio{
-  0%{ transform: scale(0) rotate(-28deg); opacity:0 }
-  60%{ transform: scale(1.16) rotate(6deg); opacity:1 }
+  0%  { transform: scale(0) rotate(-28deg); opacity:0 }
+  60% { transform: scale(1.16) rotate(6deg); opacity:1 }
   100%{ transform: scale(1) rotate(0); opacity:1 }
 }
 .premio-titulo{
-  font-size: clamp(30px, 8.4vmin, 96px); font-weight:900; letter-spacing:.02em;
-  background: linear-gradient(92deg, var(--oro), #fff 60%, var(--oro));
-  -webkit-background-clip:text; background-clip:text; color:transparent;
+  font-size: clamp(32px, 9vmin, 104px); font-weight:900; letter-spacing:-.01em;
+  color: var(--blanco); line-height:1;
 }
-.premio-titulo.flojo{
-  background: linear-gradient(92deg, var(--tinta-sec), #fff);
-  -webkit-background-clip:text; background-clip:text; color:transparent;
-}
-.premio-nombre{ font-size: clamp(20px, 5.2vmin, 54px); font-weight:800; }
-.premio-nivel{ font-size: clamp(13px,2.5vmin,22px); color: var(--tinta-sec); }
-.premio-nivel b{ color: var(--tinta); font-size:1.25em; }
+.premio-titulo.flojo{ color: var(--negro); }
+.premio-nombre{ font-size: clamp(20px, 5vmin, 52px); font-weight:800; }
+.premio-nivel{ font-size: clamp(13px,2.3vmin,21px); font-weight:600; color:rgba(255,255,255,.9); }
+.premio-nivel b{ color: var(--blanco); font-size:1.3em; }
 .premio-cta{
-  margin-top:1.6vmin; font-size: clamp(12px,2.3vmin,20px); font-weight:800; letter-spacing:.1em;
-  border:2px dashed var(--oro); border-radius:16px; color:var(--oro);
-  padding: clamp(9px,1.7vmin,16px) clamp(20px,3.8vmin,38px);
+  margin-top:1vmin; font-size: clamp(12px,2.1vmin,19px); font-weight:900; letter-spacing:.08em;
+  background: var(--blanco); color: var(--negro); border-radius:999px;
+  padding: clamp(9px,1.6vmin,15px) clamp(20px,3.6vmin,36px);
 }
 
-/* ---------- Panel de ajustes ---------- */
-.panel{ padding:0; align-items:stretch; justify-content:flex-start; background: rgba(4,4,12,.93); backdrop-filter: blur(14px); }
+/* ===================================================================
+   PANEL DE AJUSTES  (backstage: oscuro a proposito, para distinguirlo
+   del juego y que los controles se lean bien)
+   =================================================================== */
+.panel{ padding:0; align-items:stretch; justify-content:flex-start; background:#0b1118; }
 .panel-scroll{
   width:100%; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch;
   padding: 22px 16px 60px; max-width: 720px; margin:0 auto; text-align:left;
 }
 .panel-h1{ font-size:26px; font-weight:900; }
-.panel-ver{ font-size:12px; font-weight:700; color:var(--tinta-sec); vertical-align:middle; }
-.panel-sub{ font-size:13px; color:var(--tinta-sec); margin-bottom:16px; }
+.panel-ver{ font-size:12px; font-weight:700; color:#8fa3b8; vertical-align:middle; }
+.panel-sub{ font-size:13px; color:#8fa3b8; margin-bottom:16px; }
 .tarjeta{
   background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
   border-radius:18px; padding:16px; margin-bottom:14px;
 }
 .tarjeta h3{
-  font-size:15px; font-weight:800; color:var(--acento);
+  font-size:15px; font-weight:800; color: #4db4ec;
   margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,.1);
 }
 .campo{ display:flex; align-items:center; gap:10px; margin:11px 0; }
@@ -283,22 +272,32 @@ body.sacudir{ animation: sacudida .12s linear infinite; }
 .stepper{ display:flex; align-items:center; gap:8px; }
 .stepper button{
   width:44px; height:44px; border:none; border-radius:12px; cursor:pointer;
-  background: var(--acento); color:#06121a; font-size:24px; font-weight:900; line-height:1;
+  background: var(--azul); color:#fff; font-size:24px; font-weight:900; line-height:1;
   font-family:inherit;
 }
 .stepper button:active{ transform:scale(.93); }
 .stepper span{
-  min-width:64px; text-align:center; font-size:19px; font-weight:900; color:var(--oro);
+  min-width:64px; text-align:center; font-size:19px; font-weight:900; color:#fff;
   font-variant-numeric: tabular-nums;
 }
 .txt, .sel{
-  font-family:inherit; font-size:15px; color:var(--tinta);
+  font-family:inherit; font-size:15px; color:#fff;
   background: rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.2);
   border-radius:10px; padding:11px 12px; width:100%; max-width:290px;
 }
 .txt.mini{ max-width:74px; text-align:center; font-size:20px; }
 .emojis{ display:flex; gap:8px; }
-.ayuda{ font-size:12px; color:var(--tinta-sec); line-height:1.5; margin-top:8px; }
+.ayuda{ font-size:12px; color:#8fa3b8; line-height:1.5; margin-top:8px; }
+
+/* selector de marca */
+.btn-marca{
+  flex:1; cursor:pointer; border-radius:12px; padding:14px 12px;
+  background: var(--azul); border:3px solid transparent;
+  display:grid; place-items:center;
+}
+.btn-marca img{ width:100%; max-width:190px; height:auto; display:block; }
+.btn-marca.sel{ border-color:#fff; }
+.btn-marca:active{ transform:scale(.97); }
 
 .live-barra{
   height:34px; border-radius:999px; background: rgba(255,255,255,.09);
@@ -306,11 +305,11 @@ body.sacudir{ animation: sacudida .12s linear infinite; }
 }
 .live-barra span{
   display:block; height:100%; width:0%; border-radius:999px;
-  background: linear-gradient(90deg, var(--verde), var(--oro) 55%, var(--rojo));
+  background: var(--azul);
   transition: width .07s linear;
 }
-.live-datos{ font-size:13px; color:var(--tinta-sec); text-align:center; }
-.live-datos b{ color:var(--tinta); }
+.live-datos{ font-size:13px; color:#8fa3b8; text-align:center; }
+.live-datos b{ color:#fff; }
 
 .fila-btns{ display:flex; gap:9px; margin-top:11px; }
 .btn-cal{
@@ -319,37 +318,37 @@ body.sacudir{ animation: sacudida .12s linear infinite; }
 }
 .btn-cal:active{ transform:scale(.97); }
 .btn-cal.verde{ background:#12633a; } .btn-cal.rojo{ background:#b3352b; }
-.btn-cal.azul{ background:#1c3a63; }  .btn-cal.gris{ background:#3a3a4d; }
-.btn-cal.ancho, .btn-primario.ancho{ width:100%; display:block; margin-top:10px; }
+.btn-cal.azul{ background:var(--azul); }  .btn-cal.gris{ background:#3a3a4d; }
+.btn-cal.ancho{ width:100%; display:block; margin-top:10px; }
 
 .estado-sorteo{
-  font-size:13px; color:var(--oro); background:rgba(255,210,63,.09);
+  font-size:13px; color:#ffd23f; background:rgba(255,210,63,.09);
   border:1px solid rgba(255,210,63,.28); border-radius:12px; padding:11px; margin:11px 0;
 }
 .stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:9px; }
 .stat{ background:rgba(255,255,255,.06); border-radius:12px; padding:11px; text-align:center; }
-.stat .n{ font-size:23px; font-weight:900; color:var(--acento); }
-.stat .t{ font-size:11px; color:var(--tinta-sec); margin-top:3px; }
+.stat .n{ font-size:23px; font-weight:900; color:#4db4ec; }
+.stat .t{ font-size:11px; color:#8fa3b8; margin-top:3px; }
 
 /* ---------- Lista de prueba de gritos (distribucion) ---------- */
 .log-resumen{
-  font-size:12px; color:var(--tinta-sec); text-align:center;
+  font-size:12px; color:#8fa3b8; text-align:center;
   margin:10px 0 8px; min-height:1em;
 }
-.log-resumen b{ color:var(--tinta); }
+.log-resumen b{ color:#fff; }
 .log-gritos{ display:flex; flex-direction:column; gap:6px; }
 .log-fila{
   display:flex; align-items:center; gap:10px;
   background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
   border-radius:10px; padding:8px 12px;
 }
-.log-n{ font-size:12px; color:var(--tinta-sec); min-width:30px; font-variant-numeric:tabular-nums; }
-.log-niv{ font-size:20px; font-weight:900; color:var(--oro); min-width:44px; text-align:center; font-variant-numeric:tabular-nums; }
+.log-n{ font-size:12px; color:#8fa3b8; min-width:30px; font-variant-numeric:tabular-nums; }
+.log-niv{ font-size:20px; font-weight:900; color:#fff; min-width:44px; text-align:center; font-variant-numeric:tabular-nums; }
 .log-prem{ flex:1; font-size:14px; font-weight:800; text-align:right; }
-.log-prem.p-nada{  color:var(--tinta-sec); }
-.log-prem.p-bajo{  color:var(--verde); }
-.log-prem.p-medio{ color:var(--naranja); }
-.log-prem.p-alto{  color:var(--oro); }
+.log-prem.p-nada{  color:#8fa3b8; }
+.log-prem.p-bajo{  color:#00ff9d; }
+.log-prem.p-medio{ color:#ff7a2d; }
+.log-prem.p-alto{  color:#ffd23f; }
 
 /* ---------- Boton de ajustes (engranaje) + toast ---------- */
 .btn-tuerca{
@@ -357,23 +356,30 @@ body.sacudir{ animation: sacudida .12s linear infinite; }
   top:calc(env(safe-area-inset-top,0px) + 10px); right:10px;
   width:42px; height:42px; padding:9px;
   display:grid; place-items:center;
-  color:var(--tinta-sec); cursor:pointer;
-  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.16);
-  border-radius:50%; backdrop-filter:blur(6px);
-  opacity:.4; transition:opacity .2s ease, transform .12s ease;
+  color:#fff; cursor:pointer;
+  background:rgba(0,0,0,.22); border:1px solid rgba(255,255,255,.3);
+  border-radius:50%;
+  opacity:.42; transition:opacity .2s ease, transform .12s ease;
 }
 .btn-tuerca svg{ width:100%; height:100%; }
-.btn-tuerca:active{ transform:scale(.9); opacity:.9; }
+.btn-tuerca:active{ transform:scale(.9); opacity:.95; }
 body.panel-abierto .btn-tuerca{ display:none; }
+
 .toast{
   position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(14px);
-  background: var(--verde); color:#062318; font-weight:900; font-size:15px;
-  padding:13px 26px; border-radius:14px; z-index:99;
+  background: var(--blanco); color: var(--negro); font-weight:900; font-size:15px;
+  padding:13px 26px; border-radius:999px; z-index:99;
   opacity:0; pointer-events:none; transition: opacity .25s ease, transform .25s ease;
 }
 .toast.ver{ opacity:1; transform:translateX(-50%) translateY(0); }
 
-/* Pantallas anchas: repartir mejor el espacio */
-@media (orientation:landscape) and (min-width:900px){
-  .pantalla{ gap:1.6vmin; }
+/* ===================================================================
+   Pantallas anchas / apaisadas: el poster completo se vuelve muy alto,
+   asi que se reparte en dos columnas y se recorta lo prescindible.
+   =================================================================== */
+@media (orientation:landscape) and (max-height:620px){
+  .pz[data-pz="eslogan"]{ display:none; }
+  .escena{ width: min(30vmin, 40vh); }
+  .gritalo-top{ max-height:11vh; }
+  .nivel-num{ font-size: clamp(40px, 9vmin, 74px); }
 }
