@@ -40,6 +40,10 @@ const CFG_DEF = {
   micId: ''       // dispositivo de entrada elegido
 };
 
+// Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
+// simple vista si la tablet ya tiene la ultima version instalada.
+const APP_VERSION = 'v3';
+
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
 const LS_STATS  = 'gritoStats';
@@ -437,6 +441,7 @@ const LIMITES = {
 };
 
 function pintarPanel(){
+  $('panelVer').textContent = APP_VERSION;
   ['pisoDb','maxDb','minBajo','minMedio','minAlto','stockAlto','altoMin','altoMax']
     .forEach(k => { const e = $('v-' + k); if(e) e.textContent = cfg[k]; });
   $('v-msGrito').textContent = (cfg.msGrito / 1000).toFixed(1);

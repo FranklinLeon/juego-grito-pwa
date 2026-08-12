@@ -268,6 +268,7 @@ body.sacudir{ animation: sacudida .12s linear infinite; }
   padding: 22px 16px 60px; max-width: 720px; margin:0 auto; text-align:left;
 }
 .panel-h1{ font-size:26px; font-weight:900; }
+.panel-ver{ font-size:12px; font-weight:700; color:var(--tinta-sec); vertical-align:middle; }
 .panel-sub{ font-size:13px; color:var(--tinta-sec); margin-bottom:16px; }
 .tarjeta{
   background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
