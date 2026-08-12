@@ -45,7 +45,7 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v10';
+const APP_VERSION = 'v11';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -122,7 +122,7 @@ let senalMala = 0;   // lecturas no-finitas seguidas (mic conectado pero con dat
 let diag = {
   intento:'—', trackLabel:'—', trackSR:0, ctxSR:0, canales:0,
   rms:0, noFinitos:0, mudo:null, estadoPista:'—', modo:'float',
-  estadoCtx:'—', cambia:null
+  estadoCtx:'—', cambia:null, concentracion:0
 };
 
 /* Firma barata del buffer para saber si REALMENTE se esta actualizando.
@@ -536,9 +536,15 @@ function bucle(){
     // senalMala alto = el mic esta "conectado" pero sin datos usables (pasa
     // con algunos drivers Bluetooth/USB en Android): mejor decirlo claro
     // que dejar el panel mostrando ceros o guiones sin explicacion.
-    $('livePremio').textContent = senalMala > 20
-      ? '⚠ mic sin señal válida — prueba otro micrófono'
-      : etiquetaPremio(nivel);
+    /* Un tono puro clavado a fondo de escala (RMS ~0.707, casi toda la
+       energia en una sola frecuencia) no es una voz: es un acople, el mic
+       realimentandose con el altavoz. Se avisa porque si no, parece que el
+       mic "no funciona" cuando en realidad esta saturado. */
+    const acople = diag.rms > 0.5 && diag.concentracion > 40;
+    $('livePremio').textContent =
+      acople        ? '⚠ ACOPLE: el mic capta el altavoz — baja el volumen o sepáralos' :
+      senalMala > 20 ? '⚠ mic sin señal válida — prueba otro micrófono'
+                     : etiquetaPremio(nivel);
     pintarDiag();
     if(capturando) procesarCaptura(db);
   }
@@ -687,6 +693,46 @@ function pintarPanel(){
     <div class="stat"><div class="n">${stats.alto}</div><div class="t">${cfg.nomAlto}</div></div>`;
 }
 
+/* Que hay REALMENTE dentro del buffer. Un RMS clavado en 0.707 es el de un
+   tono puro a fondo de escala, asi que hay que distinguir tres casos que se
+   confunden entre si: audio real, un tono unico (acople o señal sintetica),
+   o basura. La frecuencia dominante los separa: un tono unico concentra casi
+   toda la energia en una sola banda; la voz la reparte. */
+let espectro = null;
+function analizarEspectro(){
+  if(!analizador || !audioListo) return null;
+  const n = analizador.frequencyBinCount;
+  if(!espectro || espectro.length !== n) espectro = new Uint8Array(n);
+  analizador.getByteFrequencyData(espectro);
+
+  let pico = 0, iPico = 0, suma = 0;
+  for(let i = 0; i < n; i++){
+    suma += espectro[i];
+    if(espectro[i] > pico){ pico = espectro[i]; iPico = i; }
+  }
+  const hz = Math.round(iPico * (audioCtx ? audioCtx.sampleRate : 48000) / 2 / n);
+  // que porcentaje de la energia esta en el pico: alto = tono puro
+  const conc = suma ? Math.round((pico / suma) * n * 10) / 10 : 0;
+  diag.concentracion = conc;   // lo usa el aviso de acople del panel
+
+  const src = modoBytes ? buferByte : bufer;
+  let mn = Infinity, mx = -Infinity;
+  if(src){
+    for(let i = 0; i < src.length; i++){
+      const v = src[i];
+      if(!Number.isFinite(v)) continue;
+      if(v < mn) mn = v;
+      if(v > mx) mx = v;
+    }
+  }
+  return {
+    hz, pico, conc,
+    min: mn === Infinity ? '—' : (modoBytes ? mn : mn.toFixed(3)),
+    max: mx === -Infinity ? '—' : (modoBytes ? mx : mx.toFixed(3)),
+    muestras: src ? Array.from(src.slice(0, 6)).map(v => modoBytes ? v : (+v).toFixed(2)).join(' ') : '—'
+  };
+}
+
 /* Diagnostico en vivo del microfono. Deliberadamente muestra los datos
    CRUDOS: si un mic no da nivel, esto dice por que sin tener que suponer. */
 function pintarDiag(){
@@ -696,6 +742,7 @@ function pintarDiag(){
     diag.estadoPista = pista.readyState;
   }
   const desajuste = diag.trackSR && diag.ctxSR && diag.trackSR !== diag.ctxSR;
+  const esp = analizarEspectro();
   const fila = (k, v, cls) => `<div class="k">${k}</div><div class="v ${cls || ''}">${v}</div>`;
   $('diag').innerHTML =
     fila('micrófono', escapar(diag.trackLabel || '—')) +
@@ -710,6 +757,14 @@ function pintarDiag(){
     fila('estado audio', diag.estadoCtx, diag.estadoCtx === 'running' ? 'bien' : 'mal') +
     fila('buffer se refresca', diag.cambia === null ? '—' : (diag.cambia ? 'SÍ' : 'NO — congelado'),
          diag.cambia ? 'bien' : 'mal') +
+    (esp ? (
+      // un solo tono muy concentrado = acople o señal sintetica, no una voz
+      fila('frecuencia dominante', esp.hz + ' Hz  (fuerza ' + esp.pico + ')') +
+      fila('concentración', esp.conc + (esp.conc > 40 ? '  ← tono puro' : '  (repartido)'),
+           esp.conc > 40 ? 'mal' : 'bien') +
+      fila('rango buffer', esp.min + ' … ' + esp.max) +
+      fila('muestras crudas', esp.muestras)
+    ) : '') +
     fila('conectó al intento', diag.intento);
 }
 
