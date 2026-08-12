@@ -45,7 +45,7 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v11';
+const APP_VERSION = 'v12';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -136,100 +136,143 @@ let firmaPrev = null;
    getUserMedia pero con datos corruptos (se ve como NIVEL=NaN en el panel),
    porque el driver de esa tablet no soporta bien esa combinacion. Por eso
    se prueba en 3 niveles, cada uno menos exigente que el anterior. */
-async function pedirStream(deviceId){
+/* Lista de peticiones, de la mas exigente a la mas simple. La ultima es
+   exactamente la de test-mic.html, que es la que si funciona en las tablets
+   2 y 3. */
+function combosAudio(deviceId){
   const base = { echoCancellation:false, noiseSuppression:false, autoGainControl:false };
-  const intentos = [
+  return [
     deviceId ? { ...base, channelCount:1, deviceId:{ exact:deviceId } } : { ...base, channelCount:1 },
     deviceId ? { ...base, deviceId:{ exact:deviceId } } : { ...base },   // sin forzar mono
-    deviceId ? { deviceId:{ exact:deviceId } } : true                    // solo el dispositivo, con AGC del sistema
+    deviceId ? { deviceId:{ exact:deviceId } } : true                    // simple: como el test que funciona
   ];
-  let ultimoError = null;
-  for(let i = 0; i < intentos.length; i++){
-    try{
-      const s = await navigator.mediaDevices.getUserMedia({ audio: intentos[i] });
-      diag.intento = `${i + 1} de ${intentos.length}`;
-      return s;
-    }catch(e){ ultimoError = e; }
-  }
-  throw ultimoError;
 }
 
-async function iniciarAudio(deviceId){
-  // Cerrar el stream anterior si se cambia de microfono
-  if(streamActual) streamActual.getTracks().forEach(t => t.stop());
+/* Comprueba que el microfono ENTREGA AUDIO DE VERDAD.
 
-  streamActual = await pedirStream(deviceId);
+   Esto es lo que faltaba: en las tablets 2 y 3, pedir el mic con AGC y
+   supresion de ruido apagados NO lanza error -devuelve un stream que parece
+   valido- pero las muestras que entrega son basura fija (RMS clavado en
+   0.707). Como la cadena de respaldo solo avanzaba cuando getUserMedia
+   lanzaba una excepcion, nunca se llegaba a probar la peticion simple, que
+   es justo la que si funciona. Ahora se mide la señal antes de aceptarla. */
+async function senalViva(ms = 420){
+  /* Calentamiento imprescindible: recien montado el grafo el buffer todavia
+     esta a cero. Si se empieza a medir de inmediato, ese silencio inicial
+     hace que el minimo sea 0 y la comprobacion de "saturado" nunca salta. */
+  await new Promise(r => setTimeout(r, 200));
 
-  /* CLAVE: el AudioContext queda clavado a la frecuencia de muestreo con la
-     que se creo (la del primer mic usado, normalmente el interno a 48 kHz).
-     Si luego se conecta un mic externo que trabaja a otra frecuencia (16 kHz
-     es comun en USB/Bluetooth), Chrome en Android no siempre resamplea bien
-     ese MediaStreamSource: entrega silencio o muestras basura. Por eso el mic
-     graba perfecto en la app de audio del sistema (que abre su propia cadena
-     a la frecuencia nativa) y en cambio aqui no daba nivel.
-     Solucion: si la frecuencia del mic no coincide, se recrea el contexto. */
+  const t0 = performance.now();
+  let mn = Infinity, mx = -Infinity, muestras = 0, concMax = 0;
+  const bins = new Uint8Array(analizador.frequencyBinCount);
+
+  while(performance.now() - t0 < ms){
+    await new Promise(r => setTimeout(r, 45));
+
+    analizador.getFloatTimeDomainData(bufer);
+    let suma = 0, validas = 0;
+    for(let i = 0; i < bufer.length; i++){
+      const v = bufer[i];
+      if(Number.isFinite(v) && Math.abs(v) <= LIM_MUESTRA){ suma += v * v; validas++; }
+    }
+    const rms = validas ? Math.sqrt(suma / validas) : 0;
+    if(rms < mn) mn = rms;
+    if(rms > mx) mx = rms;
+
+    // concentracion espectral: un tono puro pone casi toda la energia en una
+    // sola banda; una voz o el ruido de una sala la reparten
+    analizador.getByteFrequencyData(bins);
+    let pico = 0, tot = 0;
+    for(let i = 0; i < bins.length; i++){ tot += bins[i]; if(bins[i] > pico) pico = bins[i]; }
+    if(tot) concMax = Math.max(concMax, (pico / tot) * bins.length);
+
+    muestras++;
+  }
+  if(muestras < 2) return true;                 // no dio tiempo: no descartar
+
+  if(mx - mn < 1e-6) return false;              // congelada del todo
+  if(mn > 0.4) return false;                    // saturada de forma sostenida
+  if(mn > 0.2 && concMax > 40) return false;    // tono puro fuerte: no es una voz
+  return true;
+}
+
+/* Monta el grafo de audio sobre un stream ya obtenido.
+
+   El analizador TIENE que tener camino hasta audioCtx.destination: Chrome
+   (sobre todo en Android) solo procesa los nodos que llegan a la salida. Se
+   pasa por una ganancia CERO para que el grafo corra sin que se oiga nada
+   (si se oyera, el micro se realimentaria con el altavoz).
+
+   Y las referencias de los nodos se guardan a nivel de modulo: como locales,
+   el recolector de basura puede llevarse el nodo del mic y cortar el audio. */
+function montarGrafo(){
   const pista = streamActual.getAudioTracks()[0];
-  const cfgPista = pista && pista.getSettings ? pista.getSettings() : {};
-  const srMic = cfgPista.sampleRate || 0;
+  const ajustes = pista && pista.getSettings ? pista.getSettings() : {};
 
-  if(audioCtx && srMic && audioCtx.sampleRate !== srMic){
-    try{ await audioCtx.close(); }catch(e){}
-    audioCtx = null;
-  }
-  if(!audioCtx){
-    const Ctor = window.AudioContext || window.webkitAudioContext;
-    // si el navegador rechaza esa frecuencia, se cae al contexto por defecto
-    try{ audioCtx = srMic ? new Ctor({ sampleRate: srMic }) : new Ctor(); }
-    catch(e){ audioCtx = new Ctor(); }
-  }
-  if(audioCtx.state === 'suspended') await audioCtx.resume();
-
-  diag.trackLabel = (pista && pista.label) || '—';
-  diag.trackSR    = srMic || 0;
-  diag.ctxSR      = audioCtx.sampleRate || 0;
-  diag.canales    = cfgPista.channelCount || 0;
-
-  /* Dos cosas imprescindibles aqui, y las dos faltaban:
-
-     1) El analizador TIENE que tener camino hasta audioCtx.destination.
-        Chrome (sobre todo en Android) solo procesa los nodos que llegan a
-        la salida; si el analizador cuelga suelto, su buffer no se actualiza
-        NUNCA y lo que se lee es memoria sin inicializar: en float salen NaN
-        y en bytes un valor fijo (-3.0 dB clavado = onda a fondo de escala).
-        Se conecta a traves de una ganancia CERO: el grafo corre pero no se
-        oye nada, que es justo lo que hace falta (si se oyera, el micro se
-        realimentaria con el altavoz).
-
-     2) Hay que GUARDAR las referencias de los nodos. Al ser variables
-        locales, el recolector de basura puede llevarse el nodo del microfono
-        y el audio deja de fluir sin previo aviso. */
   fuenteMic = audioCtx.createMediaStreamSource(streamActual);
   analizador = audioCtx.createAnalyser();
   analizador.fftSize = 1024;
   analizador.smoothingTimeConstant = 0;   // sin suavizado interno: lo hacemos nosotros
   mudoMic = audioCtx.createGain();
-  mudoMic.gain.value = 0;                 // silencio total: nada llega al altavoz
+  mudoMic.gain.value = 0;
   fuenteMic.connect(analizador);
   analizador.connect(mudoMic);
-  mudoMic.connect(audioCtx.destination);  // <- esto es lo que mantiene vivo el grafo
+  mudoMic.connect(audioCtx.destination);
 
   bufer = new Float32Array(analizador.fftSize);
+  buferByte = new Uint8Array(analizador.fftSize);
 
-  audioListo = true;
-  senalMala = 0;
-  // cada mic se evalua de cero: si el nuevo entrega float sano, se usa float
-  modoBytes = false;
-  diag.modo = 'float';
-  listarMicrofonos();
+  diag.trackLabel = (pista && pista.label) || '—';
+  diag.trackSR    = ajustes.sampleRate || 0;
+  diag.ctxSR      = audioCtx.sampleRate || 0;
+  diag.canales    = ajustes.channelCount || 0;
+}
 
-  // Si el stream "conecto" pero el mic entrega datos invalidos (pasa con
-  // ciertos drivers Bluetooth/USB en Android), detectarlo pronto y avisar
-  // en vez de dejar que el panel muestre NaN sin explicacion.
-  setTimeout(() => {
-    if(audioListo && senalMala > 20){
-      toast('Este micrófono no está dando datos válidos en esta tablet');
+async function iniciarAudio(deviceId){
+  if(streamActual) streamActual.getTracks().forEach(t => t.stop());
+
+  const Ctor = window.AudioContext || window.webkitAudioContext;
+  // contexto por defecto, igual que test-mic.html (que si funciona): forzar
+  // sampleRate a mano no aporto nada y es una variable menos que puede fallar
+  if(!audioCtx){ audioCtx = new Ctor(); }
+  if(audioCtx.state === 'suspended') await audioCtx.resume();
+
+  const combos = combosAudio(deviceId);
+  let ultimoError = null, aceptado = false;
+
+  for(let i = 0; i < combos.length; i++){
+    let s = null;
+    try{ s = await navigator.mediaDevices.getUserMedia({ audio: combos[i] }); }
+    catch(e){ ultimoError = e; continue; }
+
+    streamActual = s;
+    montarGrafo();
+    audioListo = true;
+    modoBytes = false;
+    diag.modo = 'float';
+
+    // el paso que faltaba: no basta con que getUserMedia no falle
+    if(await senalViva()){
+      diag.intento = `${i + 1} de ${combos.length}`;
+      aceptado = true;
+      break;
     }
-  }, 700);
+    // señal muerta: se descarta este stream y se prueba una peticion mas simple
+    s.getTracks().forEach(t => t.stop());
+    audioListo = false;
+  }
+
+  if(!aceptado){
+    if(!streamActual) throw (ultimoError || new Error('Sin micrófono utilizable'));
+    // ninguno dio señal viva: se deja el ultimo montado y se avisa
+    audioListo = true;
+    diag.intento = 'ninguno dio señal';
+    toast('Ningún ajuste de micrófono da señal en esta tablet');
+  }
+
+  senalMala = 0;
+  firmaPrev = null;
+  listarMicrofonos();
 }
 
 /* En estas tablets getFloatTimeDomainData() devuelve el buffer CORRUPTO:
