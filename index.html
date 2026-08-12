@@ -34,19 +34,23 @@
 
 <!-- ============ REPOSO / ATRACCION ============ -->
 <section class="pantalla" id="p-reposo">
+  <!-- el poster va recortado bajo la boca: el eslogan se muestra al final,
+       para dejarle sitio a los premios -->
   <div class="poster-wrap">
-    <div class="poster respira">
-      <img class="pz marca-wordmark" data-pz="wordmark" src="marca/mirasol.png" alt="">
-      <img class="pz" data-pz="gritalo"  src="marca/gritalo.png" alt="Gr&iacute;talo">
-      <img class="pz late-izq" data-pz="lineas-izq" src="marca/lineas-izq.png" alt="">
-      <img class="pz boca-late" data-pz="boca" src="marca/boca.png" alt="">
-      <img class="pz late-der" data-pz="lineas-der" src="marca/lineas-der.png" alt="">
-      <img class="pz" data-pz="eslogan" src="marca/eslogan.png" alt="Si lo quieres de verdad, que todo el mundo te escuche...">
+    <div class="poster-recorte">
+      <div class="poster respira">
+        <img class="pz marca-wordmark" data-pz="wordmark" src="marca/mirasol.png" alt="">
+        <img class="pz" data-pz="gritalo"  src="marca/gritalo.png" alt="Gr&iacute;talo">
+        <img class="pz late-izq" data-pz="lineas-izq" src="marca/lineas-izq.png" alt="">
+        <img class="pz boca-late" data-pz="boca" src="marca/boca.png" alt="">
+        <img class="pz late-der" data-pz="lineas-der" src="marca/lineas-der.png" alt="">
+      </div>
     </div>
   </div>
   <div class="pie">
-    <div class="premios-tira" id="tiraPremios"></div>
     <div class="toca-empezar">TOCA PARA EMPEZAR</div>
+    <div class="premios-tira" id="tiraPremios"></div>
+    <img class="eslogan-pie" src="marca/eslogan.png" alt="Si lo quieres de verdad, que todo el mundo te escuche...">
   </div>
 </section>
 
@@ -70,6 +74,8 @@
 
   <div class="medidor">
     <div class="barra">
+      <!-- el degradado verde-naranja-rojo ocupa SIEMPRE el ancho completo y se
+           revela con clip-path, para que cada color quede fijo en su tramo -->
       <div class="barra-fill" id="barraFill"></div>
       <div class="barra-marcas" id="marcasUmbral"></div>
     </div>
@@ -80,9 +86,9 @@
 <!-- ============ PREMIO ============ -->
 <section class="pantalla" id="p-premio">
   <canvas id="confeti"></canvas>
-  <div class="premio-icono" id="premioIcono">&#129348;</div>
+  <img class="premio-img" id="premioImg" src="marca/premio-verde.png" alt="">
   <h2 class="premio-titulo" id="premioTitulo">&iexcl;GANASTE!</h2>
-  <p class="premio-nombre" id="premioNombre">Lata de Cola</p>
+  <p class="premio-nombre" id="premioNombre">Souvenir</p>
   <div class="premio-nivel">Tu grito lleg&oacute; a <b id="premioNivel">0</b></div>
   <div class="premio-cta" id="premioCta">Reclama tu premio</div>
   <button class="btn-blanco" id="btnOtraVez">JUGAR OTRA VEZ</button>
@@ -147,11 +153,11 @@
 
     <div class="tarjeta">
       <h3>Nombres de los premios</h3>
-      <div class="campo"><label>Bajo</label><input class="txt" id="txtBajo" type="text"></div>
-      <div class="campo"><label>Medio</label><input class="txt" id="txtMedio" type="text"></div>
-      <div class="campo"><label>Mayor</label><input class="txt" id="txtAlto" type="text"></div>
-      <div class="campo"><label>Emojis (bajo/medio/mayor)</label>
-        <div class="emojis"><input class="txt mini" id="emoBajo"><input class="txt mini" id="emoMedio"><input class="txt mini" id="emoAlto"></div></div>
+      <p class="ayuda">Los dibujos (llavero / gorra / mochila) son fijos, salidos del arte
+        de la campa&ntilde;a. Aqu&iacute; solo se cambia el texto.</p>
+      <div class="campo"><label><span class="pt verde"></span> Nivel verde</label><input class="txt" id="txtBajo" type="text"></div>
+      <div class="campo"><label><span class="pt naranja"></span> Nivel naranja</label><input class="txt" id="txtMedio" type="text"></div>
+      <div class="campo"><label><span class="pt rojo"></span> Nivel rojo</label><input class="txt" id="txtAlto" type="text"></div>
     </div>
 
     <div class="tarjeta">

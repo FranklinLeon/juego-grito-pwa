@@ -1,7 +1,7 @@
 /* Service worker: deja la app funcionando SIN internet una vez instalada.
    Si cambias archivos, sube el numero de VERSION para forzar la actualizacion. */
 
-const VERSION = 'grito-v6';
+const VERSION = 'grito-v7';
 const ARCHIVOS = [
   './',
   './index.html',
@@ -17,7 +17,10 @@ const ARCHIVOS = [
   './marca/boca.png',
   './marca/lineas-izq.png',
   './marca/lineas-der.png',
-  './marca/eslogan.png'
+  './marca/eslogan.png',
+  './marca/premio-verde.png',
+  './marca/premio-naranja.png',
+  './marca/premio-rojo.png'
 ];
 
 self.addEventListener('install', (e) => {

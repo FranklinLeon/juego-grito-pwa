@@ -26,10 +26,12 @@ const CFG_DEF = {
 
   msGrito: 4000,  // duracion de la ventana de grito
 
-  // Premios (editables desde el panel)
-  nomBajo: 'Lata de Cola',  emoBajo: '\u{1F964}',
-  nomMedio:'Tomatodo',      emoMedio:'\u{1F376}',
-  nomAlto: 'Alexa',         emoAlto: '\u{1F50A}',
+  // Premios de la campaña (escalafon del PDF). Los dibujos son fijos,
+  // salidos del arte; desde el panel solo se edita el texto.
+  cfgVer:  2,
+  nomBajo: 'Souvenir',
+  nomMedio:'Merchandising',
+  nomAlto: 'Mega Regalo',
 
   // Sorteo oculto del premio mayor
   stockAlto: 2,
@@ -63,6 +65,35 @@ function cargar(clave, porDefecto){
 const guardarCfg    = () => localStorage.setItem(LS_CFG,    JSON.stringify(cfg));
 const guardarSorteo = () => localStorage.setItem(LS_SORTEO, JSON.stringify(sorteo));
 const guardarStats  = () => localStorage.setItem(LS_STATS,  JSON.stringify(stats));
+
+/* Migracion de config: las tablets que ya usaron la version anterior tienen
+   guardados los premios viejos (Lata de Cola / Tomatodo / Alexa) y el merge
+   con CFG_DEF los conservaria para siempre. Al subir cfgVer se reescriben.
+
+   OJO: hay que mirar el objeto CRUDO de localStorage, no `cfg`. Como cargar()
+   hace {...CFG_DEF, ...guardado}, una config vieja (sin cfgVer) hereda el
+   cfgVer de los defaults y la comprobacion nunca detectaria nada. */
+(function migrarCfg(){
+  let bruto = null;
+  try{ bruto = JSON.parse(localStorage.getItem(LS_CFG)); }catch(e){}
+  if(!bruto || typeof bruto !== 'object') return;      // instalacion nueva: ya trae los defaults
+  if(bruto.cfgVer === CFG_DEF.cfgVer) return;
+  cfg.nomBajo  = CFG_DEF.nomBajo;
+  cfg.nomMedio = CFG_DEF.nomMedio;
+  cfg.nomAlto  = CFG_DEF.nomAlto;
+  delete cfg.emoBajo; delete cfg.emoMedio; delete cfg.emoAlto;
+  cfg.cfgVer = CFG_DEF.cfgVer;
+  guardarCfg();
+})();
+
+/* Dibujos de cada premio (fijos, recortados del PDF de la campaña) */
+const IMG_PREMIO = {
+  bajo:  'marca/premio-verde.png',
+  medio: 'marca/premio-naranja.png',
+  alto:  'marca/premio-rojo.png'
+};
+const escapar = (t) => String(t).replace(/[&<>"]/g, c =>
+  ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 
 /* ---------------- Atajos DOM ---------------- */
 const $ = (id) => document.getElementById(id);
@@ -231,10 +262,14 @@ function irA(nuevo){
 
 /* ---------------- Reposo ---------------- */
 function pintarTiraPremios(){
-  $('tiraPremios').innerHTML = `
-    <div class="premio-chip"><span class="emo">${cfg.emoBajo}</span>${cfg.nomBajo}</div>
-    <div class="premio-chip"><span class="emo">${cfg.emoMedio}</span>${cfg.nomMedio}</div>
-    <div class="premio-chip alto"><span class="emo">${cfg.emoAlto}</span>${cfg.nomAlto}</div>`;
+  $('tiraPremios').innerHTML =
+    [['bajo', cfg.nomBajo], ['medio', cfg.nomMedio], ['alto', cfg.nomAlto]]
+      .map(([k, nom]) => `
+        <div class="premio-item ${k}">
+          <img src="${IMG_PREMIO[k]}" alt="">
+          <div class="premio-nom">${escapar(nom)}</div>
+          <div class="premio-linea"></div>
+        </div>`).join('');
 }
 
 function pantallaCompleta(){
@@ -284,7 +319,7 @@ function empezarGrito(){
   irA('grito');
   bip(1100, .3, 'square', .2);
   pintarMarcasUmbral();
-  $('barraFill').style.width = '0%';
+  $('barraFill').style.clipPath = 'inset(0 100% 0 0)';
   $('nivelNum').textContent  = '0';
   $('picoVal').textContent   = '0';
   dibujarEscena(0);
@@ -325,7 +360,7 @@ function bucle(){
     const visto = Math.min(nivelSuavizado, topeVisto);           // lo que ve el jugador
     if(visto > picoVisto) picoVisto = Math.round(visto);
 
-    $('barraFill').style.width = visto + '%';
+    $('barraFill').style.clipPath = `inset(0 ${100 - visto}% 0 0)`;
     $('nivelNum').textContent = Math.round(visto);
     $('picoVal').textContent  = picoVisto;
     dibujarEscena(visto);
@@ -334,7 +369,7 @@ function bucle(){
     if(performance.now() >= finGrito) terminarGrito();
   }
   else if(estado === 'admin'){
-    $('liveFill').style.width  = nivel + '%';
+    $('liveFill').style.clipPath = `inset(0 ${100 - nivel}% 0 0)`;
     $('liveNivel').textContent = nivel;
     $('liveDb').textContent    = db.toFixed(1);
     $('livePremio').textContent = etiquetaPremio(nivel);
@@ -368,19 +403,20 @@ function terminarGrito(){
   irA('premio');
   const tit = $('premioTitulo');
 
+  const img = $('premioImg');
   if(cual === 'nada'){
     tit.textContent = '¡CASI!';
     tit.classList.add('flojo');
-    $('premioIcono').textContent  = '\u{1F4AA}';
+    img.style.display = 'none';
     $('premioNombre').textContent = '¡Grita más fuerte!';
     $('premioCta').textContent    = 'Vuelve a intentarlo';
     trombon();
   }else{
     const nom = cual === 'alto' ? cfg.nomAlto : cual === 'medio' ? cfg.nomMedio : cfg.nomBajo;
-    const emo = cual === 'alto' ? cfg.emoAlto : cual === 'medio' ? cfg.emoMedio : cfg.emoBajo;
     tit.textContent = '¡GANASTE!';
     tit.classList.remove('flojo');
-    $('premioIcono').textContent  = emo;
+    img.style.display = '';
+    img.src = IMG_PREMIO[cual];
     $('premioNombre').textContent = nom;
     $('premioCta').textContent    = 'Reclama tu premio';
     fanfarria();
@@ -456,9 +492,9 @@ function pintarPanel(){
     .forEach(k => { const e = $('v-' + k); if(e) e.textContent = cfg[k]; });
   $('v-msGrito').textContent = (cfg.msGrito / 1000).toFixed(1);
 
-  $('txtBajo').value  = cfg.nomBajo;  $('emoBajo').value  = cfg.emoBajo;
-  $('txtMedio').value = cfg.nomMedio; $('emoMedio').value = cfg.emoMedio;
-  $('txtAlto').value  = cfg.nomAlto;  $('emoAlto').value  = cfg.emoAlto;
+  $('txtBajo').value  = cfg.nomBajo;
+  $('txtMedio').value = cfg.nomMedio;
+  $('txtAlto').value  = cfg.nomAlto;
   $('lbl1').textContent = cfg.nomBajo;
   $('lbl2').textContent = cfg.nomMedio;
   $('lbl3').textContent = cfg.nomAlto;
@@ -598,9 +634,9 @@ const enlazarTexto = (idInput, clave) => {
     $('lbl3').textContent = cfg.nomAlto;
   });
 };
-enlazarTexto('txtBajo','nomBajo');   enlazarTexto('emoBajo','emoBajo');
-enlazarTexto('txtMedio','nomMedio'); enlazarTexto('emoMedio','emoMedio');
-enlazarTexto('txtAlto','nomAlto');   enlazarTexto('emoAlto','emoAlto');
+enlazarTexto('txtBajo','nomBajo');
+enlazarTexto('txtMedio','nomMedio');
+enlazarTexto('txtAlto','nomAlto');
 
 $('btnFijarHabla').addEventListener('click', () => iniciarCaptura('piso'));
 $('btnFijarGrito').addEventListener('click', () => iniciarCaptura('grito'));

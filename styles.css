@@ -16,6 +16,11 @@
   --negro:   #0a0a0a;
   --crema:   #edebd6;   /* el crema de la boca halftone */
 
+  /* niveles de premio, muestreados del PDF de la campaña */
+  --verde:   #00BE62;
+  --naranja: #FF741F;
+  --rojo:    #EB0000;
+
   --fuente: "Helvetica Neue", Helvetica, Arial, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -62,6 +67,19 @@ body{
 }
 .pz{ position:absolute; display:block; }
 
+/* Recorta el poster justo debajo de la boca (el eslogan se muestra aparte,
+   al final del pie). El poster interno mantiene el canvas completo, asi los
+   porcentajes de cada pieza siguen siendo los del arte original. */
+.poster-recorte{
+  position:relative; overflow:hidden;
+  height:100%; max-width:100%;
+  aspect-ratio: 2835 / 2790;
+}
+.poster-recorte > .poster{
+  position:absolute; top:0; left:0;
+  width:100%; height:auto;
+}
+
 .pz[data-pz="wordmark"]   { left:22.15%; top: 7.35%; width:55.66%; }
 .pz[data-pz="gritalo"]    { left:12.42%; top:20.52%; width:76.44%; }
 .pz[data-pz="boca"]       { left:30.16%; top:37.92%; width:36.54%; }
@@ -103,17 +121,27 @@ body{
   color: rgba(255,255,255,.85); max-width:44ch; line-height:1.45;
 }
 
-/* ---------- Tira de premios (reposo) ---------- */
-.premios-tira{ display:flex; gap: clamp(7px,1.4vmin,16px); flex-wrap:wrap; justify-content:center; }
-.premio-chip{
-  display:flex; align-items:center; gap:.55em;
-  background: rgba(255,255,255,.16);
-  border:2px solid var(--blanco); border-radius:999px;
-  padding: clamp(6px,1vmin,11px) clamp(12px,2vmin,20px);
-  font-size: clamp(11px,1.8vmin,16px); font-weight:800;
+/* ---------- Premios (reposo): dibujo + nombre + color de su nivel ---------- */
+.premios-tira{ display:flex; justify-content:center; align-items:flex-start; width:100%; gap:1vmin; }
+.premio-item{
+  flex:1 1 0; min-width:0; max-width:34%;
+  display:flex; flex-direction:column; align-items:center; gap:.7vmin;
 }
-.premio-chip .emo{ font-size:1.45em; line-height:1; }
-.premio-chip.alto{ background: var(--blanco); color: var(--negro); }
+.premio-item img{
+  /* fotos: necesitan mas alto que el line-art para leerse a distancia */
+  height: clamp(48px, 9.5vmin, 108px); width:100%;
+  object-fit:contain; object-position:center bottom;
+}
+.premio-nom{
+  font-size: clamp(9px,1.55vmin,15px); font-weight:800;
+  letter-spacing:.03em; text-transform:uppercase; line-height:1.15;
+}
+.premio-linea{ width: clamp(30px,5.5vmin,62px); height:clamp(3px,.6vmin,5px); border-radius:3px; }
+.premio-item.bajo  .premio-linea{ background: var(--verde); }
+.premio-item.medio .premio-linea{ background: var(--naranja); }
+.premio-item.alto  .premio-linea{ background: var(--rojo); }
+
+.eslogan-pie{ width:min(78%, 520px); height:auto; margin-top:.4vmin; }
 
 .toca-empezar{
   font-size: clamp(14px,2.7vmin,26px); font-weight:900; letter-spacing:.14em;
@@ -199,9 +227,20 @@ body{
   border: 3px solid var(--negro); border-radius:999px;
   overflow:hidden;
 }
+/* El degradado ocupa siempre el ancho completo de la barra y se va
+   destapando con clip-path. Asi el verde/naranja/rojo quedan ANCLADOS a su
+   tramo de nivel (si en vez de esto se animara el width, el degradado se
+   comprimiria y al 20% ya se veria rojo). */
 .barra-fill{
-  height:100%; width:0%; background: var(--blanco);
-  transition: width .07s linear;
+  position:absolute; inset:0;
+  background: linear-gradient(90deg,
+    var(--verde)   0%,
+    var(--verde)   22%,
+    var(--naranja) 55%,
+    var(--rojo)    88%,
+    var(--rojo)    100%);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path .07s linear;
 }
 .barra-marcas{ position:absolute; inset:0; pointer-events:none; }
 .barra-marcas i{
@@ -223,9 +262,13 @@ body.sacudir{ animation: sacudida .11s linear infinite; }
 }
 
 /* ---------- Premio ---------- */
-#confeti{ position:absolute; inset:0; z-index:-1; pointer-events:none; }
-.premio-icono{
-  font-size: clamp(74px, 25vmin, 240px); line-height:1;
+/* canvas es un elemento reemplazado: con inset:0 NO se estira, se queda con
+   su tamaño intrinseco (los atributos width/height). Hay que forzarlo, o el
+   confeti no cubre la pantalla al girar la tablet. */
+#confeti{ position:absolute; inset:0; width:100%; height:100%; z-index:-1; pointer-events:none; }
+.premio-img{
+  height: clamp(110px, 28vmin, 300px); width:min(72vw, 420px);
+  object-fit:contain;
   animation: entrarPremio .75s cubic-bezier(.2,1.1,.3,1);
 }
 @keyframes entrarPremio{
@@ -300,14 +343,24 @@ body.sacudir{ animation: sacudida .11s linear infinite; }
 .btn-marca:active{ transform:scale(.97); }
 
 .live-barra{
+  position:relative;
   height:34px; border-radius:999px; background: rgba(255,255,255,.09);
   border:1px solid rgba(255,255,255,.2); overflow:hidden; margin-bottom:9px;
 }
 .live-barra span{
-  display:block; height:100%; width:0%; border-radius:999px;
-  background: var(--azul);
-  transition: width .07s linear;
+  position:absolute; inset:0;
+  background: linear-gradient(90deg,
+    var(--verde) 0%, var(--verde) 22%, var(--naranja) 55%, var(--rojo) 88%, var(--rojo) 100%);
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path .07s linear;
 }
+
+/* puntito de color del nivel, en el panel */
+.pt{
+  display:inline-block; width:11px; height:11px; border-radius:50%;
+  margin-right:5px; vertical-align:baseline;
+}
+.pt.verde{ background:var(--verde); } .pt.naranja{ background:var(--naranja); } .pt.rojo{ background:var(--rojo); }
 .live-datos{ font-size:13px; color:#8fa3b8; text-align:center; }
 .live-datos b{ color:#fff; }
 
