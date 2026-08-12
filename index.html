@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07070f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Grita para Ganar</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+</head>
+<body>
+
+<div class="fondo"></div>
+<div class="vineta"></div>
+
+<!-- ============ PERMISO / ARRANQUE ============ -->
+<section class="pantalla activa" id="p-permiso">
+  <div class="mic-glifo grande">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <rect x="9" y="2" width="6" height="12" rx="3"/>
+      <path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/><path d="M8 22h8"/>
+    </svg>
+  </div>
+  <h1 class="titulo-xl">GRITA<span class="acento"> PARA </span>GANAR</h1>
+  <p class="bajada">Toca para activar el micr&oacute;fono y empezar</p>
+  <button class="btn-primario" id="btnActivar">ACTIVAR MICR&Oacute;FONO</button>
+  <p class="nota" id="notaPermiso">Se necesita permiso del micr&oacute;fono para medir tu grito.</p>
+</section>
+
+<!-- ============ REPOSO / ATRACCION ============ -->
+<section class="pantalla" id="p-reposo">
+  <div class="halo-pulso"></div>
+  <div class="mic-glifo flotante">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+      <rect x="9" y="2" width="6" height="12" rx="3"/>
+      <path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/><path d="M8 22h8"/>
+    </svg>
+  </div>
+  <h1 class="titulo-xl">GRITA<span class="acento"> PARA </span>GANAR</h1>
+  <p class="bajada">&iquest;Qu&eacute; tan fuerte puedes gritar?</p>
+  <div class="premios-tira" id="tiraPremios"></div>
+  <div class="toca-empezar">TOCA PARA EMPEZAR</div>
+</section>
+
+<!-- ============ CUENTA REGRESIVA ============ -->
+<section class="pantalla" id="p-cuenta">
+  <p class="prepara">PREP&Aacute;RATE</p>
+  <div class="cuenta-num" id="cuentaNum">3</div>
+  <div class="anillo-cuenta"></div>
+</section>
+
+<!-- ============ GRITO ============ -->
+<section class="pantalla" id="p-grito">
+  <p class="grita-txt">&iexcl;GRITAAA!</p>
+
+  <div class="medidor-wrap">
+    <svg class="aguja" viewBox="0 0 240 240" aria-hidden="true">
+      <defs>
+        <linearGradient id="gradArco" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0%"   stop-color="#00ff9d"/>
+          <stop offset="45%"  stop-color="#ffd23f"/>
+          <stop offset="75%"  stop-color="#ff7a2d"/>
+          <stop offset="100%" stop-color="#ff2d55"/>
+        </linearGradient>
+        <filter id="brilloArco" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <circle class="pista" cx="120" cy="120" r="100"/>
+      <circle class="relleno" id="arcoRelleno" cx="120" cy="120" r="100" filter="url(#brilloArco)"/>
+      <g id="marcasUmbral"></g>
+    </svg>
+
+    <div class="centro-medidor">
+      <div class="nivel-num" id="nivelNum">0</div>
+      <div class="nivel-lbl">NIVEL</div>
+    </div>
+    <div class="onda" id="onda1"></div>
+    <div class="onda" id="onda2"></div>
+  </div>
+
+  <div class="barra-pico">
+    <div class="pico-lbl">PICO</div>
+    <div class="pico-val" id="picoVal">0</div>
+  </div>
+</section>
+
+<!-- ============ PREMIO ============ -->
+<section class="pantalla" id="p-premio">
+  <canvas id="confeti"></canvas>
+  <div class="premio-icono" id="premioIcono">🥤</div>
+  <h2 class="premio-titulo" id="premioTitulo">&iexcl;GANASTE!</h2>
+  <p class="premio-nombre" id="premioNombre">Lata de Cola</p>
+  <div class="premio-nivel">Tu grito lleg&oacute; a <b id="premioNivel">0</b></div>
+  <div class="premio-cta" id="premioCta">Reclama tu premio</div>
+  <button class="btn-secundario" id="btnOtraVez">JUGAR OTRA VEZ</button>
+</section>
+
+<!-- ============ PANEL DE AJUSTES ============ -->
+<section class="pantalla panel" id="p-admin">
+  <div class="panel-scroll">
+    <h2 class="panel-h1">Ajustes</h2>
+    <p class="panel-sub">Los cambios se guardan en esta tablet.</p>
+
+    <div class="tarjeta">
+      <h3>Micr&oacute;fono en vivo</h3>
+      <div class="live-barra"><span id="liveFill"></span></div>
+      <div class="live-datos">
+        nivel <b id="liveNivel">0</b> &middot; <b id="liveDb">-99</b> dB &middot;
+        premio <b id="livePremio">&mdash;</b>
+      </div>
+      <div class="fila-btns">
+        <button class="btn-cal verde" id="btnFijarHabla">Fijar HABLA</button>
+        <button class="btn-cal rojo" id="btnFijarGrito">Fijar GRITO (3s)</button>
+      </div>
+      <p class="ayuda">Fija HABLA en silencio/charla normal y GRITO con un grito real. Cuanto m&aacute;s separados, m&aacute;s gradual el medidor.</p>
+      <div class="campo"><label>Piso &mdash; habla (dB)</label>
+        <div class="stepper"><button data-k="pisoDb" data-d="-1">&minus;</button><span id="v-pisoDb">?</span><button data-k="pisoDb" data-d="1">+</button></div></div>
+      <div class="campo"><label>M&aacute;ximo &mdash; grito (dB)</label>
+        <div class="stepper"><button data-k="maxDb" data-d="-1">&minus;</button><span id="v-maxDb">?</span><button data-k="maxDb" data-d="1">+</button></div></div>
+      <div class="campo"><label>Micr&oacute;fono</label>
+        <select id="selMic" class="sel"></select></div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Rangos de premio</h3>
+      <div class="campo"><label>M&iacute;nimo para <b id="lbl1">premio bajo</b></label>
+        <div class="stepper"><button data-k="minBajo" data-d="-1">&minus;</button><span id="v-minBajo">?</span><button data-k="minBajo" data-d="1">+</button></div></div>
+      <div class="campo"><label>M&iacute;nimo para <b id="lbl2">premio medio</b></label>
+        <div class="stepper"><button data-k="minMedio" data-d="-1">&minus;</button><span id="v-minMedio">?</span><button data-k="minMedio" data-d="1">+</button></div></div>
+      <div class="campo"><label>M&iacute;nimo para <b id="lbl3">premio mayor</b></label>
+        <div class="stepper"><button data-k="minAlto" data-d="-1">&minus;</button><span id="v-minAlto">?</span><button data-k="minAlto" data-d="1">+</button></div></div>
+      <div class="campo"><label>Duraci&oacute;n del grito (s)</label>
+        <div class="stepper"><button data-k="msGrito" data-d="-500">&minus;</button><span id="v-msGrito">?</span><button data-k="msGrito" data-d="500">+</button></div></div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Nombres de los premios</h3>
+      <div class="campo"><label>Bajo</label><input class="txt" id="txtBajo" type="text"></div>
+      <div class="campo"><label>Medio</label><input class="txt" id="txtMedio" type="text"></div>
+      <div class="campo"><label>Mayor</label><input class="txt" id="txtAlto" type="text"></div>
+      <div class="campo"><label>Emojis (bajo/medio/mayor)</label>
+        <div class="emojis"><input class="txt mini" id="emoBajo"><input class="txt mini" id="emoMedio"><input class="txt mini" id="emoAlto"></div></div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Premio mayor &mdash; sorteo oculto</h3>
+      <p class="ayuda">El premio mayor no se gana solo por gritar fuerte: se &laquo;arma&raquo; en un intento al azar. Mientras no est&aacute; armado, el medidor se topa justo debajo para no delatarlo.</p>
+      <div class="campo"><label>Stock disponible</label>
+        <div class="stepper"><button data-k="stockAlto" data-d="-1">&minus;</button><span id="v-stockAlto">?</span><button data-k="stockAlto" data-d="1">+</button></div></div>
+      <div class="campo"><label>Se arma como pronto (intentos)</label>
+        <div class="stepper"><button data-k="altoMin" data-d="-1">&minus;</button><span id="v-altoMin">?</span><button data-k="altoMin" data-d="1">+</button></div></div>
+      <div class="campo"><label>Se arma como tarde (intentos)</label>
+        <div class="stepper"><button data-k="altoMax" data-d="-1">&minus;</button><span id="v-altoMax">?</span><button data-k="altoMax" data-d="1">+</button></div></div>
+      <div class="estado-sorteo" id="estadoSorteo">&mdash;</div>
+      <button class="btn-cal azul ancho" id="btnResetSorteo">Reiniciar sorteo (stock lleno)</button>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Estad&iacute;sticas</h3>
+      <div class="stats" id="stats"></div>
+      <button class="btn-cal azul ancho" id="btnResetStats">Borrar estad&iacute;sticas</button>
+    </div>
+
+    <div class="tarjeta">
+      <button class="btn-cal gris ancho" id="btnRestaurar">Restaurar valores por defecto</button>
+      <button class="btn-primario ancho" id="btnCerrarPanel">VOLVER AL JUEGO</button>
+    </div>
+  </div>
+</section>
+
+<!-- zona secreta para abrir ajustes: 5 toques en la esquina sup. derecha -->
+<div class="zona-secreta" id="zonaSecreta"></div>
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
