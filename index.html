@@ -162,13 +162,18 @@
 
     <div class="tarjeta">
       <h3>Premio mayor &mdash; sorteo oculto</h3>
-      <p class="ayuda">El premio mayor no se gana solo por gritar fuerte: se &laquo;arma&raquo; en un intento al azar. Mientras no est&aacute; armado, el medidor se topa justo debajo para no delatarlo.</p>
+      <p class="ayuda">El premio mayor <b>no se gana solo por gritar fuerte</b>. El juego
+        sortea cada cu&aacute;ntos gritos se &laquo;arma&raquo;: mientras no lo est&aacute;, el medidor se topa
+        justo debajo del umbral para no delatarlo, por muy fuerte que griten. Una vez
+        armado, se lo lleva el primer grito que llegue al umbral rojo.</p>
       <div class="campo"><label>Stock disponible</label>
         <div class="stepper"><button data-k="stockAlto" data-d="-1">&minus;</button><span id="v-stockAlto">?</span><button data-k="stockAlto" data-d="1">+</button></div></div>
-      <div class="campo"><label>Se arma como pronto (intentos)</label>
+      <div class="campo"><label>Se arma como pronto (gritos)</label>
         <div class="stepper"><button data-k="altoMin" data-d="-1">&minus;</button><span id="v-altoMin">?</span><button data-k="altoMin" data-d="1">+</button></div></div>
-      <div class="campo"><label>Se arma como tarde (intentos)</label>
+      <div class="campo"><label>Se arma como tarde (gritos)</label>
         <div class="stepper"><button data-k="altoMax" data-d="-1">&minus;</button><span id="v-altoMax">?</span><button data-k="altoMax" data-d="1">+</button></div></div>
+      <p class="ayuda">Cada vez que sale un premio mayor se vuelve a sortear en ese rango.
+        Cambiar estos n&uacute;meros vuelve a sortear al instante.</p>
       <div class="estado-sorteo" id="estadoSorteo">&mdash;</div>
       <button class="btn-cal azul ancho" id="btnResetSorteo">Reiniciar sorteo (stock lleno)</button>
     </div>

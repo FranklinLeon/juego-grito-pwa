@@ -45,7 +45,7 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v4';
+const APP_VERSION = 'v5';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -499,10 +499,18 @@ function pintarPanel(){
   $('lbl2').textContent = cfg.nomMedio;
   $('lbl3').textContent = cfg.nomAlto;
 
-  $('estadoSorteo').textContent =
-    `Stock: ${sorteo.stock} · intentos jugados: ${sorteo.intentos} · ` +
-    (sorteo.armado ? 'ARMADO (lo gana el próximo grito fuerte)'
-                   : `se arma en el intento #${sorteo.target}`);
+  /* Se muestra CUANTO FALTA, no el numero absoluto de intento: sorteo.target
+     es acumulado desde la instalacion, asi que tras 80 partidas decia cosas
+     como "se arma en el intento #103" y no habia forma de interpretarlo. */
+  const faltan = Math.max(sorteo.target - sorteo.intentos, 0);
+  $('estadoSorteo').innerHTML =
+    sorteo.stock <= 0
+      ? `Sin stock de <b>${escapar(cfg.nomAlto)}</b>: ya no puede salir. ` +
+        `Usa «Reiniciar sorteo» para reponerlo.`
+      : `Stock: <b>${sorteo.stock}</b> &middot; llevas <b>${sorteo.intentos}</b> gritos jugados<br>` +
+        (sorteo.armado
+          ? `<b>ARMADO</b> &rarr; lo gana el próximo grito que llegue a ${cfg.minAlto}.`
+          : `Se arma dentro de <b>${faltan}</b> ${faltan === 1 ? 'grito' : 'gritos'} más.`);
 
   $('stats').innerHTML = `
     <div class="stat"><div class="n">${stats.jugadas}</div><div class="t">jugadas</div></div>
@@ -621,6 +629,16 @@ document.querySelectorAll('.stepper button').forEach(b => {
     const k = b.dataset.k, d = parseInt(b.dataset.d, 10);
     const lim = LIMITES[k] || [-9999, 9999];
     cfg[k] = Math.max(lim[0], Math.min(lim[1], (cfg[k] || 0) + d));
+
+    /* Estos tocan el sorteo YA EN CURSO. Si no se aplican aqui, cambiarlos
+       en el panel no hace nada hasta el proximo "Reiniciar sorteo", y el
+       recuadro de estado sigue mostrando los valores viejos. */
+    if(k === 'stockAlto'){ sorteo.stock = cfg.stockAlto; guardarSorteo(); }
+    if(k === 'altoMin' || k === 'altoMax'){
+      if(cfg.altoMax < cfg.altoMin) cfg.altoMax = cfg.altoMin;   // rango invertido
+      nuevoTarget();                                             // vuelve a sortear
+    }
+
     guardarCfg(); pintarPanel();
   });
 });
