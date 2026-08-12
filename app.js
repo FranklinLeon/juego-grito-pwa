@@ -45,7 +45,7 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v5';
+const APP_VERSION = 'v6';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -111,22 +111,34 @@ function toast(txt){
 /* ---------------- Audio ---------------- */
 let audioCtx = null, analizador = null, bufer = null, streamActual = null;
 let audioListo = false;
+let senalMala = 0;   // lecturas no-finitas seguidas (mic conectado pero con datos invalidos)
+
+/* No todos los microfonos/drivers Android aceptan igual las restricciones
+   estrictas (mono forzado, deviceId exacto). Un mic USB/Bluetooth que en
+   una tablet funciona bien puede en otra devolver un stream "valido" para
+   getUserMedia pero con datos corruptos (se ve como NIVEL=NaN en el panel),
+   porque el driver de esa tablet no soporta bien esa combinacion. Por eso
+   se prueba en 3 niveles, cada uno menos exigente que el anterior. */
+async function pedirStream(deviceId){
+  const base = { echoCancellation:false, noiseSuppression:false, autoGainControl:false };
+  const intentos = [
+    deviceId ? { ...base, channelCount:1, deviceId:{ exact:deviceId } } : { ...base, channelCount:1 },
+    deviceId ? { ...base, deviceId:{ exact:deviceId } } : { ...base },   // sin forzar mono
+    deviceId ? { deviceId:{ exact:deviceId } } : true                    // solo el dispositivo, con AGC del sistema
+  ];
+  let ultimoError = null;
+  for(const audio of intentos){
+    try{ return await navigator.mediaDevices.getUserMedia({ audio }); }
+    catch(e){ ultimoError = e; }
+  }
+  throw ultimoError;
+}
 
 async function iniciarAudio(deviceId){
   // Cerrar el stream anterior si se cambia de microfono
   if(streamActual) streamActual.getTracks().forEach(t => t.stop());
 
-  const restricciones = {
-    audio: {
-      echoCancellation: false,   // <- los tres van APAGADOS a proposito:
-      noiseSuppression: false,   //    si no, el navegador comprime/filtra
-      autoGainControl:  false,   //    y gritar mide igual que hablar
-      channelCount: 1
-    }
-  };
-  if(deviceId) restricciones.audio.deviceId = { exact: deviceId };
-
-  streamActual = await navigator.mediaDevices.getUserMedia(restricciones);
+  streamActual = await pedirStream(deviceId);
 
   if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if(audioCtx.state === 'suspended') await audioCtx.resume();
@@ -139,7 +151,17 @@ async function iniciarAudio(deviceId){
   bufer = new Float32Array(analizador.fftSize);
 
   audioListo = true;
+  senalMala = 0;
   listarMicrofonos();
+
+  // Si el stream "conecto" pero el mic entrega datos invalidos (pasa con
+  // ciertos drivers Bluetooth/USB en Android), detectarlo pronto y avisar
+  // en vez de dejar que el panel muestre NaN sin explicacion.
+  setTimeout(() => {
+    if(audioListo && senalMala > 20){
+      toast('Este micrófono no está dando datos válidos en esta tablet');
+    }
+  }, 700);
 }
 
 // Nivel de sonido instantaneo en dBFS (RMS de la ventana de FFT)
@@ -149,7 +171,14 @@ function leerDb(){
   let suma = 0;
   for(let i = 0; i < bufer.length; i++) suma += bufer[i] * bufer[i];
   const rms = Math.sqrt(suma / bufer.length);
-  return 20 * Math.log10(rms + 1e-9);   // el epsilon evita log10(0)
+  const db = 20 * Math.log10(rms + 1e-9);   // el epsilon evita log10(0)
+
+  // Con ciertos mics (sobre todo Bluetooth/USB con driver raro en Android)
+  // el stream conecta bien pero el buffer viene con NaN/Infinity. Sin este
+  // guard eso se propaga a nivel, barra, "PICO", decision de premio, etc.
+  if(!Number.isFinite(db)){ senalMala++; return -99; }
+  senalMala = 0;
+  return db;
 }
 
 // Promedio de los ultimos VENTANA_MS: un mic barato se satura/clipea por
@@ -371,8 +400,13 @@ function bucle(){
   else if(estado === 'admin'){
     $('liveFill').style.clipPath = `inset(0 ${100 - nivel}% 0 0)`;
     $('liveNivel').textContent = nivel;
-    $('liveDb').textContent    = db.toFixed(1);
-    $('livePremio').textContent = etiquetaPremio(nivel);
+    $('liveDb').textContent    = Number.isFinite(db) ? db.toFixed(1) : '—';
+    // senalMala alto = el mic esta "conectado" pero sin datos usables (pasa
+    // con algunos drivers Bluetooth/USB en Android): mejor decirlo claro
+    // que dejar el panel mostrando ceros o guiones sin explicacion.
+    $('livePremio').textContent = senalMala > 20
+      ? '⚠ mic sin señal válida — prueba otro micrófono'
+      : etiquetaPremio(nivel);
     if(capturando) procesarCaptura(db);
   }
   else if(estado !== 'grito' && estado !== 'admin'){
