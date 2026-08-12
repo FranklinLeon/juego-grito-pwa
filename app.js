@@ -45,7 +45,7 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v8';
+const APP_VERSION = 'v9';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -110,6 +110,9 @@ function toast(txt){
 
 /* ---------------- Audio ---------------- */
 let audioCtx = null, analizador = null, bufer = null, streamActual = null;
+// se guardan a nivel de modulo a proposito: si quedan como locales, el
+// recolector de basura puede llevarse el nodo del mic y cortar el audio
+let fuenteMic = null, mudoMic = null;
 let audioListo = false;
 let senalMala = 0;   // lecturas no-finitas seguidas (mic conectado pero con datos invalidos)
 
@@ -180,11 +183,30 @@ async function iniciarAudio(deviceId){
   diag.ctxSR      = audioCtx.sampleRate || 0;
   diag.canales    = cfgPista.channelCount || 0;
 
-  const fuente = audioCtx.createMediaStreamSource(streamActual);
+  /* Dos cosas imprescindibles aqui, y las dos faltaban:
+
+     1) El analizador TIENE que tener camino hasta audioCtx.destination.
+        Chrome (sobre todo en Android) solo procesa los nodos que llegan a
+        la salida; si el analizador cuelga suelto, su buffer no se actualiza
+        NUNCA y lo que se lee es memoria sin inicializar: en float salen NaN
+        y en bytes un valor fijo (-3.0 dB clavado = onda a fondo de escala).
+        Se conecta a traves de una ganancia CERO: el grafo corre pero no se
+        oye nada, que es justo lo que hace falta (si se oyera, el micro se
+        realimentaria con el altavoz).
+
+     2) Hay que GUARDAR las referencias de los nodos. Al ser variables
+        locales, el recolector de basura puede llevarse el nodo del microfono
+        y el audio deja de fluir sin previo aviso. */
+  fuenteMic = audioCtx.createMediaStreamSource(streamActual);
   analizador = audioCtx.createAnalyser();
   analizador.fftSize = 1024;
   analizador.smoothingTimeConstant = 0;   // sin suavizado interno: lo hacemos nosotros
-  fuente.connect(analizador);
+  mudoMic = audioCtx.createGain();
+  mudoMic.gain.value = 0;                 // silencio total: nada llega al altavoz
+  fuenteMic.connect(analizador);
+  analizador.connect(mudoMic);
+  mudoMic.connect(audioCtx.destination);  // <- esto es lo que mantiene vivo el grafo
+
   bufer = new Float32Array(analizador.fftSize);
 
   audioListo = true;
