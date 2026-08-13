@@ -151,6 +151,42 @@ body{
 }
 @keyframes respirar{ 0%,100%{ transform:scale(1) } 50%{ transform:scale(1.055) } }
 
+/* ---------- Registro del participante ---------- */
+/* La pantalla es scrollable a proposito: al abrirse el teclado de Android el
+   alto util se parte casi a la mitad y si no, el boton queda inalcanzable. */
+#p-registro{ justify-content:flex-start; overflow-y:auto; padding-top:4vmin; }
+.reg-caja{
+  width:min(92vw, 560px); margin:auto;
+  background:var(--blanco); color:var(--negro);
+  border-radius:22px; padding: clamp(18px,3.4vmin,32px);
+  text-align:left; box-shadow:0 18px 50px rgba(0,0,0,.28);
+}
+.reg-tit{ font-size: clamp(19px,3.4vmin,30px); font-weight:900; letter-spacing:-.01em; }
+.reg-sub{ font-size: clamp(12px,1.9vmin,15px); color:#5a6470; margin:6px 0 16px; }
+.reg-lbl{
+  display:block; font-size: clamp(12px,1.9vmin,15px); font-weight:800;
+  margin:14px 0 6px; color:var(--negro);
+}
+.reg-inp{
+  width:100%; font-family:inherit;
+  font-size: clamp(17px,2.6vmin,22px);   /* >=16px evita que iOS haga zoom */
+  font-weight:700; color:var(--negro);
+  background:#eef1f4; border:2px solid #d3d9df; border-radius:14px;
+  padding: clamp(12px,2vmin,17px) 14px;
+}
+.reg-inp:focus{ outline:none; border-color:var(--azul); background:#fff; }
+.reg-inp::placeholder{ color:#9aa4ae; font-weight:600; }
+.reg-error{
+  font-size: clamp(12px,1.9vmin,15px); font-weight:800; color:#c62828;
+  min-height:1.3em; margin:10px 0 4px;
+}
+#p-registro .btn-negro.ancho{ width:100%; margin-top:4px; }
+.btn-texto{
+  display:block; width:100%; margin-top:10px; background:none; border:none;
+  font-family:inherit; font-size: clamp(13px,2vmin,16px); font-weight:700;
+  color:#5a6470; text-decoration:underline; cursor:pointer; padding:10px;
+}
+
 /* ---------- Cuenta regresiva ---------- */
 .prepara{
   font-size: clamp(14px,3vmin,30px); font-weight:900; letter-spacing:.3em;
@@ -389,6 +425,17 @@ body.sacudir{ animation: sacudida .11s linear infinite; }
 .stat{ background:rgba(255,255,255,.06); border-radius:12px; padding:11px; text-align:center; }
 .stat .n{ font-size:23px; font-weight:900; color:#4db4ec; }
 .stat .t{ font-size:11px; color:#8fa3b8; margin-top:3px; }
+
+/* ---------- Lista de participantes registrados ---------- */
+.reg-lista{ display:flex; flex-direction:column; gap:6px; margin:10px 0; }
+.reg-fila{
+  display:flex; align-items:center; gap:10px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  border-radius:10px; padding:9px 12px; font-size:14px;
+}
+.reg-quien{ flex:1; min-width:0; color:#fff; line-height:1.35; word-break:break-word; }
+.reg-res{ text-align:right; font-size:19px; font-weight:900; color:#4db4ec; line-height:1.25; }
+.reg-meta{ font-size:11px; font-weight:600; color:#8fa3b8; }
 
 /* ---------- Lista de prueba de gritos (distribucion) ---------- */
 .log-resumen{

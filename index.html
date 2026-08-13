@@ -54,6 +54,27 @@
   </div>
 </section>
 
+<!-- ============ REGISTRO DEL PARTICIPANTE ============ -->
+<section class="pantalla" id="p-registro">
+  <div class="reg-caja">
+    <h2 class="reg-tit">REG&Iacute;STRATE PARA JUGAR</h2>
+    <p class="reg-sub">Tus datos se guardan solo en esta tablet.</p>
+
+    <label class="reg-lbl" for="regNombre">Nombre y apellido</label>
+    <input class="reg-inp" id="regNombre" type="text" autocomplete="off"
+           autocapitalize="words" enterkeyhint="next" placeholder="Ej: Ana P&eacute;rez">
+
+    <label class="reg-lbl" for="regCedula">C&eacute;dula</label>
+    <input class="reg-inp" id="regCedula" type="tel" inputmode="numeric" autocomplete="off"
+           enterkeyhint="done" maxlength="13" placeholder="Ej: 1712345678">
+
+    <p class="reg-error" id="regError"></p>
+
+    <button class="btn-negro ancho" id="btnRegOk">CONTINUAR</button>
+    <button class="btn-texto" id="btnRegCancelar">Cancelar</button>
+  </div>
+</section>
+
 <!-- ============ CUENTA REGRESIVA ============ -->
 <section class="pantalla" id="p-cuenta">
   <p class="prepara">PREP&Aacute;RATE</p>
@@ -191,6 +212,18 @@
         Cambiar estos n&uacute;meros vuelve a sortear al instante.</p>
       <div class="estado-sorteo" id="estadoSorteo">&mdash;</div>
       <button class="btn-cal azul ancho" id="btnResetSorteo">Reiniciar sorteo (stock lleno)</button>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Registro de participantes</h3>
+      <p class="ayuda">Pide nombre y c&eacute;dula antes de cada partida. Los datos
+        <b>no salen de esta tablet</b>: se guardan aqu&iacute; y se exportan a CSV cuando t&uacute; quieras.</p>
+      <div class="campo"><label>Pedir registro para jugar</label>
+        <button class="btn-cal gris" id="btnRegistroOnOff" style="flex:0 0 auto;min-width:96px">&mdash;</button></div>
+      <div class="estado-sorteo" id="regResumen">&mdash;</div>
+      <div class="reg-lista" id="regLista"></div>
+      <button class="btn-cal verde ancho" id="btnRegCsv">Descargar CSV</button>
+      <button class="btn-cal gris ancho" id="btnRegBorrar">Borrar registros</button>
     </div>
 
     <div class="tarjeta">

@@ -13,6 +13,12 @@
 
 'use strict';
 
+/* Con registro o sin registro es la MISMA app: se enciende y se apaga desde
+   Ajustes, asi se pueden enseñar las dos versiones al cliente con una sola
+   URL y sin mantener dos copias del codigo. Viene apagado de fabrica.
+   OJO: tiene que declararse ANTES de CFG_DEF, que lo usa como valor inicial. */
+const REGISTRO_ACTIVO = false;
+
 /* ---------------- Configuracion por defecto ---------------- */
 const CFG_DEF = {
   // Mapeo de 2 puntos (en dBFS): piso = habla normal -> 0 ; max = grito -> 100
@@ -41,6 +47,7 @@ const CFG_DEF = {
 
   marca: 'mirasol',   // 'mirasol' | 'proauto' (solo cambia el logo)
   micId: '',      // dispositivo de entrada elegido
+  registroActivo: REGISTRO_ACTIVO,   // pedir nombre+cedula antes de jugar
 
   /* false = peticion simple (la que funciona en TODAS las tablets).
      true  = AGC apagado: separa mejor hablar de gritar, pero en algunos
@@ -50,15 +57,18 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v13';
+const APP_VERSION = 'v14';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
 const LS_STATS  = 'gritoStats';
+const LS_REG    = 'gritoRegistros';
 
 let cfg    = cargar(LS_CFG,    { ...CFG_DEF });
 let sorteo = cargar(LS_SORTEO, null);
 let stats  = cargar(LS_STATS,  { jugadas:0, sinPremio:0, bajo:0, medio:0, alto:0 });
+let registros = cargar(LS_REG, []);
+if(!Array.isArray(registros)) registros = [];
 
 function cargar(clave, porDefecto){
   try{
@@ -70,6 +80,7 @@ function cargar(clave, porDefecto){
 const guardarCfg    = () => localStorage.setItem(LS_CFG,    JSON.stringify(cfg));
 const guardarSorteo = () => localStorage.setItem(LS_SORTEO, JSON.stringify(sorteo));
 const guardarStats  = () => localStorage.setItem(LS_STATS,  JSON.stringify(stats));
+const guardarReg    = () => localStorage.setItem(LS_REG,    JSON.stringify(registros));
 
 /* Migracion de config: las tablets que ya usaron la version anterior tienen
    guardados los premios viejos (Lata de Cola / Tomatodo / Alexa) y el merge
@@ -102,7 +113,7 @@ const escapar = (t) => String(t).replace(/[&<>"]/g, c =>
 
 /* ---------------- Atajos DOM ---------------- */
 const $ = (id) => document.getElementById(id);
-const PANTALLAS = ['p-permiso','p-reposo','p-cuenta','p-grito','p-premio','p-admin'];
+const PANTALLAS = ['p-permiso','p-reposo','p-registro','p-cuenta','p-grito','p-premio','p-admin'];
 function mostrar(id){
   PANTALLAS.forEach(p => $(p).classList.toggle('activa', p === id));
 }
@@ -415,7 +426,133 @@ function pintarTiraPremios(){
 function pantallaCompleta(){
   const el = document.documentElement;
   const fn = el.requestFullscreen || el.webkitRequestFullscreen;
-  if(fn) { try{ fn.call(el); }catch(e){} }
+  if(!fn) return;
+  try{
+    // devuelve una promesa que se RECHAZA si no viene de un gesto del usuario;
+    // sin el catch queda como error no capturado en consola
+    const p = fn.call(el);
+    if(p && p.catch) p.catch(() => {});
+  }catch(e){}
+}
+
+/* ---------------- Registro del participante ---------------- */
+/* Los datos NO se envian a ningun sitio: viven en esta tablet (localStorage)
+   y se exportan a CSV a mano desde el panel. */
+let participante = null;
+
+function tocarReposo(){
+  if(estado !== 'reposo') return;
+  pantallaCompleta();
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  if(cfg.registroActivo){ abrirRegistro(); return; }
+  participante = null;
+  empezarJuego();
+}
+
+function abrirRegistro(){
+  $('regNombre').value = '';
+  $('regCedula').value = '';
+  $('regError').textContent = '';
+  irA('registro');
+  setTimeout(() => { try{ $('regNombre').focus(); }catch(e){} }, 250);
+}
+
+function confirmarRegistro(){
+  const nombre = $('regNombre').value.trim().replace(/\s+/g, ' ');
+  const cedula = $('regCedula').value.replace(/\D/g, '');   // solo digitos
+
+  if(nombre.length < 3){
+    $('regError').textContent = 'Escribe el nombre completo.';
+    $('regNombre').focus(); return;
+  }
+  /* Validacion deliberadamente permisiva: en un evento hay extranjeros con
+     pasaporte y no se puede dejar a nadie fuera por un formato estricto. */
+  if(cedula.length < 5){
+    $('regError').textContent = 'La cédula debe tener al menos 5 dígitos.';
+    $('regCedula').focus(); return;
+  }
+
+  participante = { nombre, cedula };
+  $('regError').textContent = '';
+  document.activeElement && document.activeElement.blur();   // cierra el teclado
+  estado = 'reposo';          // empezarJuego() exige venir de reposo
+  empezarJuego();
+}
+
+/* ----- Exportar a CSV ----- */
+/* Se genera y se descarga en la propia tablet; no se sube nada a ningun
+   servidor. El archivo se abre tal cual en Excel o Google Sheets. */
+function campoCsv(v){
+  const s = String(v == null ? '' : v);
+  // comillas, comas y saltos obligan a entrecomillar (y a doblar las comillas)
+  return /[",;\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function csvRegistros(){
+  const cab = ['Fecha', 'Hora', 'Nombre', 'Cedula', 'Nivel', 'Premio'];
+  const filas = registros.map(r => {
+    const d = new Date(r.fecha);
+    const fecha = isNaN(d) ? '' : d.toLocaleDateString('es-EC');
+    const hora  = isNaN(d) ? '' : d.toLocaleTimeString('es-EC');
+    return [fecha, hora, r.nombre, r.cedula, r.nivel, r.premio].map(campoCsv).join(',');
+  });
+  // BOM al inicio: sin el, Excel se come los acentos
+  return '﻿' + [cab.join(','), ...filas].join('\r\n');
+}
+
+function descargarCsv(){
+  if(!registros.length){ toast('Todavía no hay participantes'); return; }
+  const hoy = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([csvRegistros()], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `gritalo-participantes-${hoy}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  toast(`Descargando ${registros.length} participantes`);
+}
+
+function pintarRegistro(){
+  const b = $('btnRegistroOnOff');
+  if(b){
+    b.textContent = cfg.registroActivo ? 'ACTIVADO' : 'apagado';
+    b.className = 'btn-cal ' + (cfg.registroActivo ? 'verde' : 'gris');
+  }
+  const r = $('regResumen');
+  if(!r) return;
+  if(!registros.length){
+    r.textContent = cfg.registroActivo
+      ? 'Registro activado. Aún no ha jugado nadie.'
+      : 'Registro apagado: se juega sin pedir datos.';
+    const vacia = $('regLista');
+    if(vacia) vacia.innerHTML = '';   // si no, la lista anterior se queda en pantalla
+    return;
+  }
+  // resumen: cuantos hay y desde/hasta cuando
+  const fPrim = new Date(registros[0].fecha);
+  const fUlt  = new Date(registros[registros.length - 1].fecha);
+  const dia = d => isNaN(d) ? '—' : d.toLocaleDateString('es-EC');
+  const rango = dia(fPrim) === dia(fUlt) ? dia(fUlt) : `${dia(fPrim)} → ${dia(fUlt)}`;
+  r.innerHTML = `<b>${registros.length}</b> participante${registros.length === 1 ? '' : 's'} · ${rango}`;
+
+  // ultimos 8, del mas reciente al mas antiguo, con su fecha y hora
+  const lista = $('regLista');
+  if(!lista) return;
+  lista.innerHTML = registros.slice(-8).reverse().map(x => {
+    const d = new Date(x.fecha);
+    const cuando = isNaN(d) ? '—'
+      : `${d.toLocaleDateString('es-EC')} ${d.toLocaleTimeString('es-EC', {hour:'2-digit', minute:'2-digit'})}`;
+    return `<div class="reg-fila">
+      <div class="reg-quien"><b>${escapar(x.nombre)}</b><br>
+        <span class="reg-meta">${escapar(x.cedula)} · ${cuando}</span></div>
+      <div class="reg-res">${x.nivel}<br><span class="reg-meta">${escapar(x.premio)}</span></div>
+    </div>`;
+  }).join('') + (registros.length > 8
+    ? `<div class="reg-meta" style="text-align:center;margin-top:6px">
+         y ${registros.length - 8} más — descarga el CSV para verlos todos</div>` : '');
 }
 
 /* ---------------- Arranque de una partida ---------------- */
@@ -551,6 +688,23 @@ function terminarGrito(){
   stats.jugadas++;
   stats[cual === 'nada' ? 'sinPremio' : cual]++;
   guardarStats();
+
+  // el registro se guarda AQUI, ya con el resultado: asi cada fila del CSV
+  // dice quien jugo, que nivel saco y que premio se lleva
+  if(cfg.registroActivo && participante){
+    const nom = cual === 'nada' ? 'Sin premio'
+              : cual === 'alto' ? cfg.nomAlto
+              : cual === 'medio' ? cfg.nomMedio : cfg.nomBajo;
+    registros.push({
+      fecha: new Date().toISOString(),
+      nombre: participante.nombre,
+      cedula: participante.cedula,
+      nivel: picoVisto,
+      premio: nom
+    });
+    guardarReg();
+    participante = null;      // el siguiente jugador vuelve a registrarse
+  }
 
   irA('premio');
   const tit = $('premioTitulo');
@@ -754,6 +908,7 @@ function abrirPanel(){
   aplicarMarca();
   pintarPanel();
   pintarPreciso();
+  pintarRegistro();
   pintarLog();
   listarMicrofonos();
   if(!rafId) rafId = requestAnimationFrame(bucle);
@@ -847,7 +1002,43 @@ $('btnActivar').addEventListener('click', async () => {
   }
 });
 
-$('p-reposo').addEventListener('pointerdown', empezarJuego);
+$('p-reposo').addEventListener('pointerdown', tocarReposo);
+
+/* ---- Registro: formulario ---- */
+$('btnRegOk').addEventListener('click', confirmarRegistro);
+$('btnRegCancelar').addEventListener('click', () => {
+  participante = null;
+  document.activeElement && document.activeElement.blur();
+  irA('reposo');
+});
+// Enter en el nombre pasa a la cedula; en la cedula, confirma
+$('regNombre').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){ e.preventDefault(); $('regCedula').focus(); }
+});
+$('regCedula').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){ e.preventDefault(); confirmarRegistro(); }
+});
+// la cedula solo admite digitos, aunque el teclado ofrezca mas
+$('regCedula').addEventListener('input', e => {
+  const limpio = e.target.value.replace(/\D/g, '');
+  if(e.target.value !== limpio) e.target.value = limpio;
+});
+
+/* ---- Registro: panel ---- */
+$('btnRegistroOnOff').addEventListener('click', () => {
+  cfg.registroActivo = !cfg.registroActivo;
+  guardarCfg(); pintarRegistro();
+  toast(cfg.registroActivo ? 'Se pedirá registro para jugar' : 'Se juega sin registro');
+});
+$('btnRegCsv').addEventListener('click', descargarCsv);
+$('btnRegBorrar').addEventListener('click', () => {
+  if(!registros.length){ toast('No hay registros que borrar'); return; }
+  // se pide confirmacion: son datos de personas y no se pueden recuperar
+  if(!confirm(`¿Borrar los ${registros.length} registros? Descarga el CSV antes, esto no se puede deshacer.`)) return;
+  registros = [];
+  guardarReg(); pintarRegistro();
+  toast('Registros borrados');
+});
 $('btnOtraVez').addEventListener('click', (e) => { e.stopPropagation(); volverAReposo(); });
 $('p-premio').addEventListener('pointerdown', () => { if(estado === 'premio') volverAReposo(); });
 
