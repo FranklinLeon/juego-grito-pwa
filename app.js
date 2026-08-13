@@ -34,7 +34,7 @@ const CFG_DEF = {
 
   // Premios de la campaña (escalafon del PDF). Los dibujos son fijos,
   // salidos del arte; desde el panel solo se edita el texto.
-  cfgVer:  2,
+  cfgVer:  3,
   nomBajo: 'Souvenir',
   nomMedio:'Merchandising',
   nomAlto: 'Mega Regalo',
@@ -53,15 +53,16 @@ const CFG_DEF = {
   micLabel: '',
   registroActivo: REGISTRO_ACTIVO,   // pedir nombre+cedula antes de jugar
 
-  /* false = peticion simple (la que funciona en TODAS las tablets).
-     true  = AGC apagado: separa mejor hablar de gritar, pero en algunos
-     drivers devuelve un stream saturado. Por eso viene apagado. */
-  micPreciso: false
+  /* Pedir el mic con AGC/supresion de ruido apagados no es solo una mejora
+     de calidad: en Android es lo que hace que Chrome enrute el audio al
+     microfono EXTERNO en vez de al interno de la tablet (ver el bloque de
+     comentario grande en iniciarAudio). Por eso va en true por defecto. */
+  micPreciso: true
 };
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v16';
+const APP_VERSION = 'v17';
 
 /* ===================================================================
    ACTIVACION POR TABLET
@@ -134,6 +135,9 @@ const guardarReg    = () => localStorage.setItem(LS_REG,    JSON.stringify(regis
   cfg.nomMedio = CFG_DEF.nomMedio;
   cfg.nomAlto  = CFG_DEF.nomAlto;
   delete cfg.emoBajo; delete cfg.emoMedio; delete cfg.emoAlto;
+  // cfgVer < 3: config de antes de saber que "preciso" es el modo que
+  // enruta bien al mic externo en Android. Se corrige el default viejo.
+  if((bruto.cfgVer || 0) < 3) cfg.micPreciso = true;
   cfg.cfgVer = CFG_DEF.cfgVer;
   guardarCfg();
 })();
@@ -185,22 +189,30 @@ let firmaPrev = null;
 /* ===================================================================
    CONEXION DEL MICROFONO
 
-   Esto es una copia FIEL de test-mic.html, que es la unica version que
-   funciono en las tres tablets. Se hizo asi a proposito tras muchas
-   vueltas, y conviene no "mejorarlo":
-
    - UNA sola llamada a getUserMedia. La cadena de reintentos anterior
      pedia y soltaba el microfono hasta 3 veces seguidas y eso dejaba el
      audio de Android en mal estado: funcionaba un rato y luego no.
-   - Contexto NUEVO en cada conexion (se cierra el anterior), como hace
-     el test. Reutilizarlo daba problemas al cambiar de microfono.
-   - Peticion SIMPLE por defecto. Pedir el microfono con AGC y supresion
-     de ruido apagados no falla en algunas tablets, pero devuelve un
-     stream saturado (tono puro, RMS clavado en 0.707).
+   - Contexto NUEVO en cada conexion (se cierra el anterior). Reutilizarlo
+     daba problemas al cambiar de microfono.
 
-   El modo preciso (AGC apagado) queda como opcion del panel: da mejor
-   separacion entre hablar y gritar, pero solo sirve donde el driver lo
-   soporta de verdad. Si falla al pedirlo, se cae solo al modo simple.
+   EL HALLAZGO IMPORTANTE, encontrado en campo con 3 tablets (2 de ellas no
+   agarraban el mic externo): en Android, pedir el microfono CON
+   echoCancellation/noiseSuppression/autoGainControl en su valor por
+   defecto (true) hace que Chrome abra el audio en modo "llamada"
+   (voice-communication), y en esas tablets ese modo enruta al microfono
+   INTERNO aunque haya un microfono externo conectado y seleccionado -sin
+   lanzar ningun error, el selector ni se entera-. Pidiendolo con esos tres
+   apagados (echoCancellation:false, noiseSuppression:false,
+   autoGainControl:false) Chrome usa una via de audio "cruda" que si
+   respeta el dispositivo externo.
+
+   Por eso esta peticion (aqui llamada "preciso") es la que va por
+   defecto, y no al reves. Antes se creyo que el AGC apagado devolvia un
+   stream saturado en algunas tablets (RMS clavado en 0.707) y por eso se
+   puso "simple" como default; esa saturacion en realidad la causaba OTRO
+   bug (el analizador no llegaba a audioContext.destination), ya corregido
+   aparte. Se deja "simple" solo como red de seguridad si "preciso" llega
+   a fallar en algun dispositivo.
    =================================================================== */
 async function iniciarAudio(deviceId){
   if(streamActual) streamActual.getTracks().forEach(t => t.stop());
@@ -1242,8 +1254,10 @@ $('btnReconectar').addEventListener('click', async () => {
   }
 });
 
-/* Modo preciso: apaga el AGC. Mejor separacion hablar/gritar donde el driver
-   lo soporta; en otras tablets deja el mic mudo, por eso es opcional. */
+/* Apaga AGC/supresion de ruido. En Android esto es lo que hace que se
+   enrute al mic EXTERNO en vez de al interno (ver comentario grande en
+   iniciarAudio). Va activado por defecto; el interruptor queda como
+   escape por si algun dispositivo lo rechaza. */
 function pintarPreciso(){
   const b = $('btnPreciso');
   if(!b) return;
@@ -1255,7 +1269,7 @@ $('btnPreciso').addEventListener('click', async () => {
   guardarCfg(); pintarPreciso();
   try{
     await iniciarAudio();     // conserva el microfono elegido
-    toast(cfg.micPreciso ? 'Modo preciso activado' : 'Modo simple (compatible)');
+    toast(cfg.micPreciso ? 'Usando el micrófono externo' : 'Usando el micrófono de la tablet');
   }catch(e){ toast('No se pudo reconectar: ' + (e && e.name ? e.name : e)); }
 });
 
