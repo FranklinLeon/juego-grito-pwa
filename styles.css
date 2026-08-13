@@ -400,6 +400,17 @@ body.sacudir{ animation: sacudida .11s linear infinite; }
 .live-datos{ font-size:13px; color:#8fa3b8; text-align:center; }
 .live-datos b{ color:#fff; }
 
+/* que microfono se esta usando de verdad: sin esto no habia forma de saber
+   si estaba escuchando el externo o el de la tablet */
+.mic-en-uso{
+  margin-top:9px; padding:9px 11px; border-radius:10px;
+  font-size:13px; font-weight:700; text-align:center; line-height:1.4;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14);
+  color:#fff; word-break:break-word;
+}
+.mic-en-uso.interno{ background:rgba(255,107,107,.12); border-color:rgba(255,107,107,.5); }
+.mic-en-uso small{ display:block; font-size:11px; font-weight:600; color:#8fa3b8; margin-top:2px; }
+
 /* tabla de diagnostico del mic */
 .diag{ display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:13px; }
 .diag .k{ color:#8fa3b8; }

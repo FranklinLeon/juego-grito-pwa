@@ -47,6 +47,10 @@ const CFG_DEF = {
 
   marca: 'mirasol',   // 'mirasol' | 'proauto' (solo cambia el logo)
   micId: '',      // dispositivo de entrada elegido
+  /* Se guarda tambien la ETIQUETA del mic: Android le cambia el deviceId al
+     desenchufarlo y volverlo a enchufar, y con solo el id la eleccion se
+     perdia y el juego se iba al microfono interno de la tablet. */
+  micLabel: '',
   registroActivo: REGISTRO_ACTIVO,   // pedir nombre+cedula antes de jugar
 
   /* false = peticion simple (la que funciona en TODAS las tablets).
@@ -57,7 +61,7 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 
 /* ===================================================================
    ACTIVACION POR TABLET
@@ -202,6 +206,9 @@ async function iniciarAudio(deviceId){
   if(streamActual) streamActual.getTracks().forEach(t => t.stop());
   if(audioCtx){ try{ await audioCtx.close(); }catch(e){} audioCtx = null; }
 
+  // sin dispositivo explicito se usa el guardado; si no, el del sistema
+  if(!deviceId) deviceId = await resolverDispositivo();
+
   const simple = deviceId ? { deviceId:{ exact:deviceId } } : true;
   const preciso = deviceId
     ? { deviceId:{ exact:deviceId }, echoCancellation:false, noiseSuppression:false, autoGainControl:false }
@@ -245,6 +252,14 @@ async function iniciarAudio(deviceId){
   diag.trackSR    = ajustes.sampleRate || 0;
   diag.ctxSR      = audioCtx.sampleRate || 0;
   diag.canales    = ajustes.channelCount || 0;
+
+  /* Se anota el mic REALMENTE abierto (id + etiqueta). Asi la eleccion
+     sobrevive a desenchufar y volver a enchufar, que le cambia el id. */
+  if(deviceId && pista){
+    if(ajustes.deviceId) cfg.micId = ajustes.deviceId;
+    if(pista.label)      cfg.micLabel = pista.label;
+    guardarCfg();
+  }
 
   audioListo = true;
   senalMala = 0;
@@ -372,8 +387,40 @@ async function listarMicrofonos(){
       o.textContent = m.label || `Micrófono ${i + 1}`;
       sel.appendChild(o);
     });
-    if(cfg.micId) sel.value = cfg.micId;
+    // marcar el que se esta usando de verdad, no el guardado
+    const enUso = mics.find(m => m.label && m.label === diag.trackLabel);
+    if(enUso) sel.value = enUso.deviceId;
+    else if(cfg.micId) sel.value = cfg.micId;
   }catch(e){ /* sin permisos aun */ }
+}
+
+/* Decide QUE microfono abrir cuando no se pide uno concreto.
+
+   Sin esto, getUserMedia({audio:true}) coge el predeterminado del sistema,
+   que en estas tablets es el microfono INTERNO: por eso el juego parecia
+   funcionar pero no estaba escuchando el microfono externo.
+
+   Se busca primero por deviceId y, si ya no existe (Android se lo cambia al
+   reconectarlo), por la etiqueta guardada. */
+async function resolverDispositivo(){
+  if(!cfg.micId && !cfg.micLabel) return undefined;
+  try{
+    const mics = (await navigator.mediaDevices.enumerateDevices())
+      .filter(d => d.kind === 'audioinput');
+    if(cfg.micId){
+      const porId = mics.find(m => m.deviceId === cfg.micId);
+      if(porId) return porId.deviceId;
+    }
+    if(cfg.micLabel){
+      const porEtiqueta = mics.find(m => m.label && m.label === cfg.micLabel);
+      if(porEtiqueta){                       // cambio el id: se actualiza
+        cfg.micId = porEtiqueta.deviceId;
+        guardarCfg();
+        return porEtiqueta.deviceId;
+      }
+    }
+  }catch(e){}
+  return undefined;
 }
 
 /* ---------------- Sonidos (sin archivos) ---------------- */
@@ -693,6 +740,7 @@ function bucle(){
       acople        ? '⚠ ACOPLE: el mic capta el altavoz — baja el volumen o sepáralos' :
       senalMala > 20 ? '⚠ mic sin señal válida — prueba otro micrófono'
                      : etiquetaPremio(nivel);
+    pintarMicEnUso();
     pintarDiag();
     if(capturando) procesarCaptura(db);
   }
@@ -898,6 +946,24 @@ function analizarEspectro(){
   };
 }
 
+/* Avisa cuando se esta escuchando el microfono INTERNO de la tablet.
+
+   Es facil que pase sin darse cuenta: si no hay uno elegido, Android abre el
+   predeterminado, que es el interno. Se detecta por la etiqueta, que en
+   Android suele decir "default", "integrado", "del teléfono"... */
+const RE_MIC_INTERNO = /(default|predetermin|integrad|built|internal|phone|tel[ée]fono|tablet)/i;
+function pintarMicEnUso(){
+  const e = $('micEnUso');
+  if(!e) return;
+  const lbl = diag.trackLabel && diag.trackLabel !== '—' ? diag.trackLabel : null;
+  if(!lbl){ e.textContent = 'Micrófono: —'; e.className = 'mic-en-uso'; return; }
+  const interno = RE_MIC_INTERNO.test(lbl);
+  e.className = 'mic-en-uso' + (interno ? ' interno' : '');
+  e.innerHTML = 'Escuchando: ' + escapar(lbl) +
+    (interno ? '<small>⚠ parece el micrófono de la tablet, no el externo — elígelo abajo</small>'
+             : '<small>micrófono externo</small>');
+}
+
 /* Diagnostico en vivo del microfono. Deliberadamente muestra los datos
    CRUDOS: si un mic no da nivel, esto dice por que sin tener que suponer. */
 function pintarDiag(){
@@ -1069,7 +1135,7 @@ function pintarActivacion(){
 
 $('btnActivar').addEventListener('click', async () => {
   try{
-    await iniciarAudio(cfg.micId || undefined);
+    await iniciarAudio();     // usa el microfono guardado si lo hay
     pintarTiraPremios();
     irA('reposo');
     if(!rafId) rafId = requestAnimationFrame(bucle);
@@ -1158,19 +1224,19 @@ $('btnFijarGrito').addEventListener('click', () => iniciarCaptura('grito'));
 $('btnMedirPico').addEventListener('click', () => iniciarCaptura('pico'));
 $('btnLimpiarLog').addEventListener('click', () => { logPicos = []; pintarLog(); });
 
-/* Reconectar: rehace toda la cadena de audio desde cero. Sirve cuando se
-   enchufa el mic con la app ya abierta (Android le asigna otro id y el
-   guardado queda apuntando a un dispositivo que ya no existe). */
+/* Reconectar: rehace la cadena de audio con el MISMO microfono elegido.
+
+   Antes esto borraba cfg.micId "para tomar el del sistema", y ese era el
+   fallo: el predeterminado de estas tablets es el microfono interno, asi
+   que cada reconexion abandonaba el microfono externo sin avisar. */
 $('btnReconectar').addEventListener('click', async () => {
   try{
     if(streamActual) streamActual.getTracks().forEach(t => t.stop());
     if(audioCtx){ try{ await audioCtx.close(); }catch(e){} audioCtx = null; }
     audioListo = false;
-    cfg.micId = '';            // olvidar el mic guardado: se toma el del sistema
-    guardarCfg();
-    await iniciarAudio(undefined);
+    await iniciarAudio();       // vuelve a resolver el guardado
     pintarPanel(); pintarDiag();
-    toast('Micrófono reconectado');
+    toast('Micrófono: ' + diag.trackLabel);
   }catch(err){
     toast('No se pudo reconectar: ' + (err && err.name ? err.name : err));
   }
@@ -1188,15 +1254,23 @@ $('btnPreciso').addEventListener('click', async () => {
   cfg.micPreciso = !cfg.micPreciso;
   guardarCfg(); pintarPreciso();
   try{
-    await iniciarAudio(cfg.micId || undefined);
+    await iniciarAudio();     // conserva el microfono elegido
     toast(cfg.micPreciso ? 'Modo preciso activado' : 'Modo simple (compatible)');
   }catch(e){ toast('No se pudo reconectar: ' + (e && e.name ? e.name : e)); }
 });
 
 $('selMic').addEventListener('change', async e => {
-  cfg.micId = e.target.value; guardarCfg();
-  try{ await iniciarAudio(cfg.micId); toast('Micrófono cambiado'); }
-  catch(err){ toast('No se pudo usar ese micrófono'); }
+  const id = e.target.value;
+  // se guarda tambien la etiqueta: es lo que permite recuperarlo si Android
+  // le cambia el id al reconectarlo
+  cfg.micId = id;
+  cfg.micLabel = e.target.options[e.target.selectedIndex].textContent || '';
+  guardarCfg();
+  try{
+    await iniciarAudio(id);
+    pintarDiag();
+    toast('Micrófono: ' + diag.trackLabel);
+  }catch(err){ toast('No se pudo usar ese micrófono'); }
 });
 
 $('btnResetSorteo').addEventListener('click', () => {
