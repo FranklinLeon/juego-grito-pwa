@@ -57,7 +57,39 @@ const CFG_DEF = {
 
 // Subir junto con VERSION en sw.js: asi el panel de ajustes deja ver a
 // simple vista si la tablet ya tiene la ultima version instalada.
-const APP_VERSION = 'v14';
+const APP_VERSION = 'v15';
+
+/* ===================================================================
+   ACTIVACION POR TABLET
+
+   NO se puede bloquear la instalacion de una PWA: instalar es cosa del
+   navegador, no de la app. Lo que si se puede es que la app no FUNCIONE
+   hasta que se meta un codigo, una sola vez por tablet. Efecto practico:
+   solo sirven las tablets que monta uno mismo; si alguien comparte el
+   enlace, esa tablet pide codigo.
+
+   Ojo con lo que esto NO es: la comprobacion ocurre en el propio
+   dispositivo, asi que alguien con conocimientos puede saltarsela leyendo
+   el codigo o tocando el almacenamiento del navegador. Frena el copiado
+   casual, que es el caso real aqui; no es una barrera criptografica.
+
+   Se guarda el SHA-256, no el codigo en claro, para que no se lea de un
+   vistazo en el fuente.
+
+   PARA CAMBIAR EL CODIGO: abrir la consola del navegador y ejecutar
+     crypto.subtle.digest('SHA-256', new TextEncoder().encode('NUEVO'))
+       .then(h => console.log([...new Uint8Array(h)]
+         .map(b => b.toString(16).padStart(2,'0')).join('')));
+   y pegar el resultado aqui abajo.
+   =================================================================== */
+const HASH_ACTIVACION = 'e16e8b351846aa446d02492df3c796dd14e30743a3805a53dce6914612f0e062';
+const LS_ACT = 'gritoActivada';
+
+async function sha256(txt){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const tabletActivada = () => localStorage.getItem(LS_ACT) === '1';
 
 const LS_CFG    = 'gritoCfg';
 const LS_SORTEO = 'gritoSorteo';
@@ -113,7 +145,7 @@ const escapar = (t) => String(t).replace(/[&<>"]/g, c =>
 
 /* ---------------- Atajos DOM ---------------- */
 const $ = (id) => document.getElementById(id);
-const PANTALLAS = ['p-permiso','p-reposo','p-registro','p-cuenta','p-grito','p-premio','p-admin'];
+const PANTALLAS = ['p-activacion','p-permiso','p-reposo','p-registro','p-cuenta','p-grito','p-premio','p-admin'];
 function mostrar(id){
   PANTALLAS.forEach(p => $(p).classList.toggle('activa', p === id));
 }
@@ -908,6 +940,7 @@ function abrirPanel(){
   aplicarMarca();
   pintarPanel();
   pintarPreciso();
+  pintarActivacion();
   pintarRegistro();
   pintarLog();
   listarMicrofonos();
@@ -989,6 +1022,51 @@ function procesarCaptura(db){
 }
 
 /* ---------------- Eventos ---------------- */
+/* ---- Activacion de la tablet (una sola vez) ---- */
+async function comprobarActivacion(){
+  const inp = $('actCodigo');
+  const codigo = inp.value.trim();
+  if(!codigo){ $('actError').textContent = 'Escribe el código.'; inp.focus(); return; }
+  let h = '';
+  try{ h = await sha256(codigo); }
+  catch(e){
+    // crypto.subtle solo existe en https:// o localhost
+    $('actError').textContent = 'Esta página debe abrirse por https:// para poder activarse.';
+    return;
+  }
+  if(h !== HASH_ACTIVACION){
+    $('actError').textContent = 'Código incorrecto.';
+    inp.select();
+    return;
+  }
+  localStorage.setItem(LS_ACT, '1');
+  inp.value = '';
+  $('actError').textContent = '';
+  document.activeElement && document.activeElement.blur();
+  irA('permiso');
+  toast('Tablet activada');
+}
+$('btnActivarTablet').addEventListener('click', comprobarActivacion);
+$('actCodigo').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){ e.preventDefault(); comprobarActivacion(); }
+});
+
+$('btnBloquearTablet').addEventListener('click', () => {
+  if(!confirm('¿Bloquear esta tablet? Habrá que volver a escribir el código de activación para usar el juego.')) return;
+  localStorage.removeItem(LS_ACT);
+  pintarActivacion();
+  irA('activacion');
+  toast('Tablet bloqueada');
+});
+
+function pintarActivacion(){
+  const e = $('actEstado');
+  if(!e) return;
+  e.innerHTML = tabletActivada()
+    ? 'Esta tablet está <b>activada</b>.'
+    : 'Esta tablet <b>no está activada</b>.';
+}
+
 $('btnActivar').addEventListener('click', async () => {
   try{
     await iniciarAudio(cfg.micId || undefined);
@@ -1152,6 +1230,13 @@ $('btnTuerca').addEventListener('click', (e) => { e.stopPropagation(); abrirPane
 document.addEventListener('dblclick', e => e.preventDefault(), { passive:false });
 
 aplicarMarca();
+
+/* Arranque: si la tablet no esta activada, lo primero que se ve es el codigo.
+   Ya activada, esto no vuelve a aparecer nunca en esa tablet. */
+if(!tabletActivada()){
+  estado = 'activacion';
+  mostrar('p-activacion');
+}
 
 /* ---------------- Service worker (offline) ---------------- */
 if('serviceWorker' in navigator){

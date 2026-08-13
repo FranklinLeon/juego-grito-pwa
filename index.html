@@ -14,6 +14,23 @@
 </head>
 <body>
 
+<!-- ============ ACTIVACION DE LA TABLET ============ -->
+<section class="pantalla" id="p-activacion">
+  <div class="reg-caja">
+    <h2 class="reg-tit">ACTIVAR ESTA TABLET</h2>
+    <p class="reg-sub">Solo se pide <b>una vez por tablet</b>. Una vez activada,
+      el juego abre directo y no vuelve a preguntar.</p>
+
+    <label class="reg-lbl" for="actCodigo">C&oacute;digo de activaci&oacute;n</label>
+    <input class="reg-inp" id="actCodigo" type="password" autocomplete="off"
+           autocapitalize="characters" spellcheck="false" enterkeyhint="done"
+           placeholder="C&oacute;digo del instalador">
+
+    <p class="reg-error" id="actError"></p>
+    <button class="btn-negro ancho" id="btnActivarTablet">ACTIVAR</button>
+  </div>
+</section>
+
 <!-- ============ PERMISO / ARRANQUE ============ -->
 <section class="pantalla activa" id="p-permiso">
   <div class="poster-wrap">
@@ -212,6 +229,15 @@
         Cambiar estos n&uacute;meros vuelve a sortear al instante.</p>
       <div class="estado-sorteo" id="estadoSorteo">&mdash;</div>
       <button class="btn-cal azul ancho" id="btnResetSorteo">Reiniciar sorteo (stock lleno)</button>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Activaci&oacute;n de la tablet</h3>
+      <p class="ayuda">El c&oacute;digo se pide <b>una sola vez por tablet</b>, al instalar.
+        El personal del evento no lo necesita. Sirve para que la app no quede
+        funcionando en tablets ajenas si alguien comparte el enlace.</p>
+      <div class="estado-sorteo" id="actEstado">&mdash;</div>
+      <button class="btn-cal gris ancho" id="btnBloquearTablet">Bloquear esta tablet</button>
     </div>
 
     <div class="tarjeta">
