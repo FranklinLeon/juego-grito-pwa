@@ -34,10 +34,10 @@ const CFG_DEF = {
 
   // Premios de la campaña (escalafon del PDF). Los dibujos son fijos,
   // salidos del arte; desde el panel solo se edita el texto.
-  cfgVer:  3,
-  nomBajo: 'Souvenir',
-  nomMedio:'Merchandising',
-  nomAlto: 'Mega Regalo',
+  cfgVer:  4,
+  nomBajo: 'Coca-Cola',
+  nomMedio:'Premio Sorpresa',
+  nomAlto: 'El Gran Premio',
 
   // Sorteo oculto del premio mayor
   stockAlto: 2,
@@ -45,7 +45,7 @@ const CFG_DEF = {
   altoMax:  40,   // ...y como tarde a los MAX (elegido al azar)
   variaTope: 8,   // cuanto varia el tope del medidor cuando no esta armado
 
-  marca: 'mirasol',   // 'mirasol' | 'proauto' (solo cambia el logo)
+  marca: 'mirasol',   // 'mirasol' | 'proauto' | 'emaulme' (solo cambia el logo)
   micId: '',      // dispositivo de entrada elegido
   /* Se guarda tambien la ETIQUETA del mic: Android le cambia el deviceId al
      desenchufarlo y volverlo a enchufar, y con solo el id la eleccion se
@@ -120,7 +120,8 @@ const guardarStats  = () => localStorage.setItem(LS_STATS,  JSON.stringify(stats
 const guardarReg    = () => localStorage.setItem(LS_REG,    JSON.stringify(registros));
 
 /* Migracion de config: las tablets que ya usaron la version anterior tienen
-   guardados los premios viejos (Lata de Cola / Tomatodo / Alexa) y el merge
+   guardados los premios de la version anterior (Souvenir / Merchandising /
+   Mega Regalo, y antes Lata de Cola / Tomatodo / Alexa) y el merge
    con CFG_DEF los conservaria para siempre. Al subir cfgVer se reescriben.
 
    OJO: hay que mirar el objeto CRUDO de localStorage, no `cfg`. Como cargar()
@@ -142,11 +143,13 @@ const guardarReg    = () => localStorage.setItem(LS_REG,    JSON.stringify(regis
   guardarCfg();
 })();
 
-/* Dibujos de cada premio (fijos, recortados del PDF de la campaña) */
+/* Dibujos de cada premio. La Coca-Cola sigue siendo el recorte del PDF de la
+   campaña; el premio sorpresa y el gran premio son ilustraciones nuevas del
+   mismo estilo (trazo grueso, fondo transparente) para que lean a distancia. */
 const IMG_PREMIO = {
-  bajo:  'marca/premio-verde.png',
-  medio: 'marca/premio-naranja.png',
-  alto:  'marca/premio-rojo.png'
+  bajo:  'marca/premio-verde.png',      // Coca-Cola
+  medio: 'marca/premio-sorpresa.png',   // Premio Sorpresa
+  alto:  'marca/premio-gran.png'        // El Gran Premio
 };
 const escapar = (t) => String(t).replace(/[&<>"]/g, c =>
   ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
@@ -478,18 +481,30 @@ let nivelSuavizado = 0;
 let finGrito = 0;
 let rafId = null;
 
-/* ---------------- Marca (Mirasol / Proauto) ---------------- */
-/* Lo unico que cambia entre las dos es el wordmark de arriba. Se puede
+/* ---------------- Marca (Mirasol / Proauto / E.Maulme) ---------------- */
+/* Lo unico que cambia entre ellas es el wordmark de arriba. Se puede
    fijar por URL (?marca=proauto) para dejar cada tablet clavada en su
-   marca sin tener que entrar al panel. */
-const MARCAS = { mirasol:'marca/mirasol.png', proauto:'marca/proauto.png' };
+   marca sin tener que entrar al panel.
+
+   Cada logo trae su propia caja (left/width, en % del poster): E.MAULME es
+   una palabra mas larga que MIRASOL y, con el ancho de Mirasol, saldria con
+   las letras mas bajitas. Con caja propia las tres se ven del mismo alto. */
+const MARCAS = {
+  mirasol: { src:'marca/mirasol.png', left:22.15, top:7.38, width:55.66 },
+  proauto: { src:'marca/proauto.png', left:22.15, top:7.38, width:55.66 },
+  emaulme: { src:'marca/emaulme.png', left:17.90, top:6.79, width:64.20 }
+};
 
 function aplicarMarca(){
-  const src = MARCAS[cfg.marca] || MARCAS.mirasol;
-  document.querySelectorAll('.marca-wordmark').forEach(img => { img.src = src; });
-  const bM = $('btnMarcaMirasol'), bP = $('btnMarcaProauto');
-  if(bM) bM.classList.toggle('sel', cfg.marca === 'mirasol');
-  if(bP) bP.classList.toggle('sel', cfg.marca === 'proauto');
+  const m = MARCAS[cfg.marca] || MARCAS.mirasol;
+  document.querySelectorAll('.marca-wordmark').forEach(img => {
+    img.src = m.src;
+    img.style.left  = m.left  + '%';
+    img.style.top   = m.top   + '%';
+    img.style.width = m.width + '%';
+  });
+  [['btnMarcaMirasol','mirasol'], ['btnMarcaProauto','proauto'], ['btnMarcaEmaulme','emaulme']]
+    .forEach(([id, k]) => { const b = $(id); if(b) b.classList.toggle('sel', cfg.marca === k); });
 }
 (function marcaPorURL(){
   const m = (new URLSearchParams(location.search).get('marca') || '').toLowerCase();
@@ -1300,12 +1315,14 @@ $('btnRestaurar').addEventListener('click', () => {
   guardarCfg(); pintarPanel(); pintarTiraPremios(); toast('Valores restaurados');
 });
 
+const NOMBRE_MARCA = { mirasol:'Mirasol', proauto:'Proauto', emaulme:'E.Maulme' };
 const elegirMarca = (m) => {
   cfg.marca = m; guardarCfg(); aplicarMarca();
-  toast(m === 'proauto' ? 'Marca: Proauto' : 'Marca: Mirasol');
+  toast('Marca: ' + (NOMBRE_MARCA[m] || NOMBRE_MARCA.mirasol));
 };
 $('btnMarcaMirasol').addEventListener('click', () => elegirMarca('mirasol'));
 $('btnMarcaProauto').addEventListener('click', () => elegirMarca('proauto'));
+$('btnMarcaEmaulme').addEventListener('click', () => elegirMarca('emaulme'));
 $('btnCerrarPanel').addEventListener('click', () => {
   pintarTiraPremios();
   irA(audioListo ? 'reposo' : 'permiso');
